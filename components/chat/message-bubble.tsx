@@ -1,0 +1,258 @@
+"use client"
+
+import { cn } from "@/lib/utils"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Card } from "@/components/ui/card"
+import type { Message, ContentBlock } from "@/lib/api-client"
+import { User, Bot, Image as ImageIcon, Video, Music, FileText, Loader2 } from "lucide-react"
+
+interface MessageBubbleProps {
+  message: Message
+}
+
+export function MessageBubble({ message }: MessageBubbleProps) {
+  const isAssistant = message.role === "assistant"
+  const hasPendingTasks = Object.keys(message.pending_tasks).length > 0
+
+  return (
+    <div
+      className={cn(
+        "flex gap-3 mb-4 items-start",
+        isAssistant ? "justify-start" : "justify-end"
+      )}
+    >
+      {isAssistant && (
+        <Avatar className="h-8 w-8">
+          <AvatarFallback className="bg-primary text-primary-foreground">
+            <Bot className="h-4 w-4" />
+          </AvatarFallback>
+        </Avatar>
+      )}
+
+      <div className={cn("flex flex-col gap-2 max-w-[80%]", isAssistant ? "items-start" : "items-end")}>
+        <Card
+          className={cn(
+            "px-4 py-3 min-w-0",
+            isAssistant
+              ? "bg-muted"
+              : "bg-primary text-primary-foreground"
+          )}
+        >
+          {message.text && (
+            <p className="text-sm whitespace-pre-wrap break-words overflow-wrap-anywhere">
+              {message.text}
+            </p>
+          )}
+
+          {message.content_blocks && message.content_blocks.length > 0 && (
+            <div className="mt-2 space-y-2">
+              {message.content_blocks.map((block) => (
+                <ContentBlockRenderer key={block.content_id} block={block} />
+              ))}
+            </div>
+          )}
+
+          {!message.is_complete && hasPendingTasks && (
+            <div className="mt-2 space-y-1">
+              {Object.entries(message.pending_tasks).map(([taskId, task]) => {
+                const taskData = task as { task_type?: string; progress?: number; status?: string }
+                return (
+                  <div key={taskId} className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>
+                      {taskData.task_type || "Processing"}...{" "}
+                      {taskData.progress !== undefined && 
+                        `${Math.round(taskData.progress * 100)}%`
+                      }
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Card>
+
+        <span className="text-xs text-muted-foreground px-1">
+          {new Date(message.created_at).toLocaleTimeString()}
+        </span>
+      </div>
+
+      {!isAssistant && (
+        <Avatar className="h-8 w-8">
+          <AvatarFallback className="bg-secondary">
+            <User className="h-4 w-4" />
+          </AvatarFallback>
+        </Avatar>
+      )}
+    </div>
+  )
+}
+
+function ContentBlockRenderer({ block }: { block: ContentBlock }) {
+  // Handle placeholder
+  if (block.is_placeholder) {
+    return (
+      <div className="flex items-center gap-2 p-3 bg-background/50 rounded-md">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        <span className="text-xs text-muted-foreground">
+          Loading {block.content_type}...
+        </span>
+      </div>
+    )
+  }
+
+  // Render based on content type
+  switch (block.content_type) {
+    case "image":
+      return <ImageBlock block={block} />
+    case "video":
+      return <VideoBlock block={block} />
+    case "audio":
+      return <AudioBlock block={block} />
+    case "file":
+      return <FileBlock block={block} />
+    default:
+      return (
+        <div className="text-xs text-muted-foreground">
+          Unknown content type: {block.content_type}
+        </div>
+      )
+  }
+}
+
+function ImageBlock({ block }: { block: ContentBlock }) {
+  if (!block.image) return null
+
+  const { url, data, caption, alt } = block.image
+
+  // Use URL or base64 data
+  const imageSrc = url || (data ? `data:image/jpeg;base64,${data}` : null)
+
+  if (!imageSrc) {
+    return (
+      <div className="flex items-center gap-2 p-3 bg-background/50 rounded-md">
+        <ImageIcon className="h-4 w-4 text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">Image (no data)</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={imageSrc}
+        alt={alt || caption || "Image"}
+        className="rounded-md max-w-full h-auto"
+        style={{
+          maxHeight: "400px",
+          objectFit: "contain",
+        }}
+      />
+      {caption && (
+        <p className="text-xs text-muted-foreground mt-1">
+          {caption}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function VideoBlock({ block }: { block: ContentBlock }) {
+  if (!block.video) return null
+
+  const { url, data, title } = block.video
+
+  // Use URL or base64 data
+  const videoSrc = url || (data ? `data:video/mp4;base64,${data}` : null)
+
+  if (!videoSrc) {
+    return (
+      <div className="flex items-center gap-2 p-3 bg-background/50 rounded-md">
+        <Video className="h-4 w-4 text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">Video (no data)</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <video
+        src={videoSrc}
+        controls
+        className="rounded-md max-w-full h-auto"
+        style={{
+          maxHeight: "400px",
+        }}
+      >
+        <track kind="captions" />
+      </video>
+      {title && (
+        <p className="text-xs text-muted-foreground mt-1">
+          {title}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function AudioBlock({ block }: { block: ContentBlock }) {
+  if (!block.audio) return null
+
+  const { url, data, title } = block.audio
+
+  // Use URL or base64 data
+  const audioSrc = url || (data ? `data:audio/mp3;base64,${data}` : null)
+
+  if (!audioSrc) {
+    return (
+      <div className="flex items-center gap-2 p-3 bg-background/50 rounded-md">
+        <Music className="h-4 w-4 text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">Audio (no data)</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-2 p-3 bg-background/50 rounded-md">
+      <div className="flex items-center gap-2">
+        <Music className="h-4 w-4 text-muted-foreground" />
+        {title && <span className="text-xs font-medium">{title}</span>}
+      </div>
+      <audio src={audioSrc} controls className="w-full">
+        <track kind="captions" />
+      </audio>
+    </div>
+  )
+}
+
+function FileBlock({ block }: { block: ContentBlock }) {
+  if (!block.file) return null
+
+  const { url, name, mime_type, size } = block.file
+
+  const formatSize = (bytes?: number) => {
+    if (!bytes) return ""
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-3 p-3 bg-background/50 rounded-md hover:bg-background transition-colors"
+    >
+      <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{name || "File"}</p>
+        <p className="text-xs text-muted-foreground">
+          {mime_type && <span>{mime_type}</span>}
+          {size && <span className="ml-2">{formatSize(size)}</span>}
+        </p>
+      </div>
+    </a>
+  )
+}

@@ -1,0 +1,331 @@
+/**
+ * Stream Event Handler
+ * Manages all SSE event processing logic
+ */
+
+import type { StreamEvent, Message, ContentBlock, ImageContent, VideoContent, AudioContent, FileContent } from "./api-client"
+
+interface ToolCallState {
+  toolName?: string
+  status?: string
+}
+
+export class StreamEventHandler {
+  private messages: Message[]
+  private setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void
+  private setToolCallState: (state: ToolCallState | null) => void
+
+  constructor(
+    messages: Message[],
+    setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void,
+    setToolCallState: (state: ToolCallState | null) => void
+  ) {
+    this.messages = messages
+    this.setMessages = setMessages
+    this.setToolCallState = setToolCallState
+  }
+
+  /**
+   * Main event handler - routes events to specific handlers
+   */
+  handle(event: StreamEvent): void {
+    console.log(`[StreamEventHandler] Processing ${event.event_type}`)
+
+    // Check if this is a tool-related event
+    if (this.isToolEvent(event.event_type)) {
+      this.handleToolEvent(event)
+      return
+    }
+
+    // Clear tool call indicator when non-tool event arrives
+    this.setToolCallState(null)
+
+    // Route to specific handler based on event type
+    switch (event.event_type) {
+      case "text_delta":
+        this.handleTextDelta(event)
+        break
+
+      case "content_added":
+        this.handleContentAdded(event)
+        break
+
+      case "content_updated":
+        this.handleContentUpdated(event)
+        break
+
+      case "task_started":
+        this.handleTaskStarted(event)
+        break
+
+      case "task_progress":
+        this.handleTaskProgress(event)
+        break
+
+      case "task_completed":
+      case "task_failed":
+        this.handleTaskCompleted(event)
+        break
+
+      case "message_end":
+        this.handleMessageEnd(event)
+        break
+
+      default:
+        console.warn(`[StreamEventHandler] Unknown event type: ${event.event_type}`)
+    }
+  }
+
+  /**
+   * Handle text delta events (streaming text)
+   */
+  private handleTextDelta(event: StreamEvent): void {
+    this.updateMessage(event.message_id, (message) => {
+      message.text += (event.payload.delta as string) || ""
+      console.log(`[TextDelta] Updated text:`, message.text.slice(-20))
+      return message
+    })
+  }
+
+  /**
+   * Handle content added events (images, videos, etc.)
+   */
+  private handleContentAdded(event: StreamEvent): void {
+    console.log("[ContentAdded] Adding content:", event.payload)
+
+    this.updateMessage(event.message_id, (message) => {
+      const hasData = event.payload.image || event.payload.video || event.payload.audio || event.payload.file
+
+      const newBlock: ContentBlock = {
+        content_id: event.payload.content_id as string,
+        content_type: event.payload.content_type as "image" | "video" | "audio" | "file",
+        is_placeholder: !hasData,
+      }
+
+      // Add type-specific data if available
+      if (event.payload.image) {
+        newBlock.image = event.payload.image as ImageContent
+      }
+      if (event.payload.video) {
+        newBlock.video = event.payload.video as VideoContent
+      }
+      if (event.payload.audio) {
+        newBlock.audio = event.payload.audio as AudioContent
+      }
+      if (event.payload.file) {
+        newBlock.file = event.payload.file as FileContent
+      }
+
+      message.content_blocks = [...message.content_blocks, newBlock]
+      console.log("[ContentAdded] Content block added:", newBlock)
+      return message
+    })
+  }
+
+  /**
+   * Handle content updated events
+   */
+  private handleContentUpdated(event: StreamEvent): void {
+    console.log("[ContentUpdated] Updating content:", event.payload)
+
+    this.updateMessage(event.message_id, (message) => {
+      const contentId = event.payload.content_id as string
+      const contentType = event.payload.content_type as string
+      
+      let blockIndex = message.content_blocks.findIndex(
+        (b) => b.content_id === contentId
+      )
+
+      // If exact content_id not found, try to find placeholder of same type
+      if (blockIndex === -1) {
+        console.warn("[ContentUpdated] Exact content_id not found, looking for placeholder:", contentId)
+        blockIndex = message.content_blocks.findIndex(
+          (b) => b.is_placeholder && b.content_type === contentType
+        )
+        
+        if (blockIndex !== -1) {
+          console.log("[ContentUpdated] Found placeholder to update:", message.content_blocks[blockIndex].content_id)
+        }
+      }
+
+      if (blockIndex !== -1) {
+        const updatedBlock = {
+          ...message.content_blocks[blockIndex],
+          content_id: contentId,  // Update to new content_id
+          is_placeholder: false,
+        }
+
+        // Add content type-specific data if provided
+        if (event.payload.image) {
+          updatedBlock.image = event.payload.image as typeof updatedBlock.image
+          console.log("[ContentUpdated] Updated image data:", event.payload.image)
+        }
+        if (event.payload.video) {
+          updatedBlock.video = event.payload.video as typeof updatedBlock.video
+          console.log("[ContentUpdated] Updated video data:", event.payload.video)
+        }
+        if (event.payload.audio) {
+          updatedBlock.audio = event.payload.audio as typeof updatedBlock.audio
+          console.log("[ContentUpdated] Updated audio data:", event.payload.audio)
+        }
+        if (event.payload.file) {
+          updatedBlock.file = event.payload.file as typeof updatedBlock.file
+          console.log("[ContentUpdated] Updated file data:", event.payload.file)
+        }
+
+        // Warn if no data provided
+        if (!event.payload.image && !event.payload.video && !event.payload.audio && !event.payload.file) {
+          console.warn("[ContentUpdated] No actual content data provided, content_id:", contentId)
+        }
+
+        message.content_blocks[blockIndex] = updatedBlock
+        console.log("[ContentUpdated] Content block updated:", updatedBlock)
+      } else {
+        console.warn("[ContentUpdated] No matching content block found for:", contentId, contentType)
+      }
+
+      return message
+    })
+  }
+
+  /**
+   * Handle task started events
+   */
+  private handleTaskStarted(event: StreamEvent): void {
+    console.log("[TaskStarted] Task started:", event.payload)
+
+    this.updateMessage(event.message_id, (message) => {
+      message.pending_tasks = {
+        ...message.pending_tasks,
+        [event.payload.task_id as string]: {
+          status: event.payload.status,
+          progress: event.payload.progress,
+          task_type: event.payload.task_type,
+        }
+      }
+      return message
+    })
+  }
+
+  /**
+   * Handle task progress events
+   */
+  private handleTaskProgress(event: StreamEvent): void {
+    console.log("[TaskProgress] Task progress:", event.payload)
+
+    this.updateMessage(event.message_id, (message) => {
+      const taskId = event.payload.task_id as string
+      if (message.pending_tasks[taskId]) {
+        message.pending_tasks = {
+          ...message.pending_tasks,
+          [taskId]: {
+            ...message.pending_tasks[taskId],
+            progress: event.payload.progress,
+            status: event.payload.status,
+          }
+        }
+      }
+      return message
+    })
+  }
+
+  /**
+   * Handle task completed/failed events
+   */
+  private handleTaskCompleted(event: StreamEvent): void {
+    console.log("[TaskCompleted] Task completed/failed:", event.payload)
+
+    this.updateMessage(event.message_id, (message) => {
+      const completedTaskId = event.payload.task_id as string
+      const newPendingTasks = { ...message.pending_tasks }
+      delete newPendingTasks[completedTaskId]
+      message.pending_tasks = newPendingTasks
+      
+      // If task_completed includes content_id, remove any placeholder for same type
+      if (event.payload.content_id) {
+        const contentId = event.payload.content_id as string
+        console.log("[TaskCompleted] Content ID provided:", contentId)
+        
+        // Find and remove placeholder blocks of the same type
+        message.content_blocks = message.content_blocks.filter(block => {
+          // Remove if it's a placeholder and there's a real content block with same type
+          if (block.is_placeholder) {
+            console.log("[TaskCompleted] Removing placeholder:", block.content_id)
+            return false
+          }
+          return true
+        })
+      }
+      
+      return message
+    })
+  }
+
+  /**
+   * Handle message end events
+   */
+  private handleMessageEnd(event: StreamEvent): void {
+    console.log("[MessageEnd] Message ended")
+
+    this.updateMessage(event.message_id, (message) => {
+      // Only update if not already complete (avoid duplicate processing)
+      if (!message.is_complete) {
+        message.is_complete = true
+        message.pending_tasks = {}
+      }
+      return message
+    })
+  }
+
+  /**
+   * Handle tool-related events
+   */
+  private handleToolEvent(event: StreamEvent): void {
+    console.log("[ToolEvent] Tool event:", event.event_type, event.payload)
+
+    const toolName = (event.payload.tool_name || event.payload.tool || event.payload.name) as string
+    const status = (event.payload.status || event.event_type) as string
+
+    this.setToolCallState({
+      toolName,
+      status
+    })
+  }
+
+  /**
+   * Check if event is tool-related
+   */
+  private isToolEvent(eventType: string): boolean {
+    const lowerType = eventType.toLowerCase()
+    return lowerType.includes("tool") || lowerType.includes("agent")
+  }
+
+  /**
+   * Helper method to update a specific message
+   */
+  private updateMessage(messageId: string, updater: (message: Message) => Message): void {
+    this.setMessages((prev) => {
+      const messageIndex = prev.findIndex((m) => m.message_id === messageId)
+
+      if (messageIndex === -1) {
+        console.warn(`[StreamEventHandler] Message not found: ${messageId}`)
+        return prev
+      }
+
+      const updatedMessages = [...prev]
+      const message = { ...updatedMessages[messageIndex] }
+      const updatedMessage = updater(message)
+      updatedMessages[messageIndex] = updatedMessage
+
+      return updatedMessages
+    })
+  }
+
+  /**
+   * Update the messages reference (for new handler instance)
+   */
+  updateMessages(messages: Message[]): void {
+    this.messages = messages
+  }
+}
+

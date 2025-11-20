@@ -1,0 +1,165 @@
+"use client"
+
+import { useState, useCallback } from "react"
+import { MessageHistory, type IMessageStorage } from "@/lib/message-history"
+import type { Message } from "@/lib/api-client"
+
+interface UseMessageHistoryOptions {
+  storage?: IMessageStorage
+}
+
+interface UseMessageHistoryReturn {
+  messages: Message[]
+  isLoading: boolean
+  error: string | null
+  loadMessages: (sessionId: string, limit?: number, offset?: number) => Promise<void>
+  addMessage: (message: Message) => Promise<void>
+  updateMessage: (message: Message) => Promise<void>
+  deleteMessage: (sessionId: string, messageId: string) => Promise<void>
+  clearSession: (sessionId: string) => Promise<void>
+  searchMessages: (sessionId: string, query: string) => Promise<Message[]>
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>
+}
+
+/**
+ * Custom hook for managing message history
+ * Supports different storage backends
+ */
+export function useMessageHistory(options?: UseMessageHistoryOptions): UseMessageHistoryReturn {
+  const [messages, setMessages] = useState<Message[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  
+  // Create history instance with optional custom storage
+  const [history] = useState(() => new MessageHistory(options?.storage))
+
+  /**
+   * Load messages for a session
+   */
+  const loadMessages = useCallback(async (
+    sessionId: string,
+    limit: number = 50,
+    offset: number = 0
+  ) => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      console.log("[useMessageHistory] Loading messages for session:", sessionId)
+      
+      const loadedMessages = await history.getMessages(sessionId, limit, offset)
+      setMessages(loadedMessages)
+      
+      console.log("[useMessageHistory] Loaded messages:", loadedMessages.length)
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to load messages"
+      setError(errorMsg)
+      console.error("[useMessageHistory] Load error:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [history])
+
+  /**
+   * Add a new message
+   */
+  const addMessage = useCallback(async (message: Message) => {
+    try {
+      console.log("[useMessageHistory] Adding message:", message.message_id)
+      
+      // Optimistically add to local state
+      setMessages((prev) => [...prev, message])
+      
+      // Save to storage (async, non-blocking)
+      await history.addMessage(message)
+    } catch (err) {
+      console.error("[useMessageHistory] Add error:", err)
+      // Rollback on error
+      setMessages((prev) => prev.filter(m => m.message_id !== message.message_id))
+      throw err
+    }
+  }, [history])
+
+  /**
+   * Update an existing message
+   */
+  const updateMessage = useCallback(async (message: Message) => {
+    try {
+      console.log("[useMessageHistory] Updating message:", message.message_id)
+      
+      // Optimistically update local state
+      setMessages((prev) => 
+        prev.map(m => m.message_id === message.message_id ? message : m)
+      )
+      
+      // Update storage (async, non-blocking)
+      await history.updateMessage(message)
+    } catch (err) {
+      console.error("[useMessageHistory] Update error:", err)
+      // Could rollback here if needed
+      throw err
+    }
+  }, [history])
+
+  /**
+   * Delete a message
+   */
+  const deleteMessage = useCallback(async (sessionId: string, messageId: string) => {
+    try {
+      console.log("[useMessageHistory] Deleting message:", messageId)
+      
+      // Optimistically remove from local state
+      setMessages((prev) => prev.filter(m => m.message_id !== messageId))
+      
+      // Delete from storage
+      await history.deleteMessage(sessionId, messageId)
+    } catch (err) {
+      console.error("[useMessageHistory] Delete error:", err)
+      throw err
+    }
+  }, [history])
+
+  /**
+   * Clear all messages in a session
+   */
+  const clearSession = useCallback(async (sessionId: string) => {
+    try {
+      console.log("[useMessageHistory] Clearing session:", sessionId)
+      
+      // Clear local state
+      setMessages([])
+      
+      // Clear storage
+      await history.clearSession(sessionId)
+    } catch (err) {
+      console.error("[useMessageHistory] Clear error:", err)
+      throw err
+    }
+  }, [history])
+
+  /**
+   * Search messages
+   */
+  const searchMessages = useCallback(async (sessionId: string, query: string): Promise<Message[]> => {
+    try {
+      console.log("[useMessageHistory] Searching:", query)
+      return await history.searchMessages(sessionId, query)
+    } catch (err) {
+      console.error("[useMessageHistory] Search error:", err)
+      return []
+    }
+  }, [history])
+
+  return {
+    messages,
+    isLoading,
+    error,
+    loadMessages,
+    addMessage,
+    updateMessage,
+    deleteMessage,
+    clearSession,
+    searchMessages,
+    setMessages,
+  }
+}
+
