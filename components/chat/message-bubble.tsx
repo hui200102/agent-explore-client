@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Card } from "@/components/ui/card"
 import type { Message, ContentBlock } from "@/lib/api-client"
-import { User, Bot, Image as ImageIcon, Video, Music, FileText, Loader2 } from "lucide-react"
+import { User, Image as ImageIcon, Video, Music, FileText, Loader2, Sparkles } from "lucide-react"
 
 interface MessageBubbleProps {
   message: Message
@@ -17,35 +17,38 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   return (
     <div
       className={cn(
-        "flex gap-3 mb-4 items-start",
+        "flex gap-3 mb-6 items-start animate-fade-in-up",
         isAssistant ? "justify-start" : "justify-end"
       )}
     >
       {isAssistant && (
-        <Avatar className="h-8 w-8">
-          <AvatarFallback className="bg-primary text-primary-foreground">
-            <Bot className="h-4 w-4" />
+        <Avatar className="h-10 w-10 border-2 border-primary/10 shadow-sm">
+          <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground">
+            <Sparkles className="h-5 w-5" />
           </AvatarFallback>
         </Avatar>
       )}
 
-      <div className={cn("flex flex-col gap-2 max-w-[80%]", isAssistant ? "items-start" : "items-end")}>
+      <div className={cn("flex flex-col gap-2 max-w-[75%] min-w-[200px]", isAssistant ? "items-start" : "items-end")}>
         <Card
           className={cn(
-            "px-4 py-3 min-w-0",
+            "px-4 py-3 min-w-0 shadow-sm border transition-all duration-200 hover:shadow-md",
             isAssistant
-              ? "bg-muted"
-              : "bg-primary text-primary-foreground"
+              ? "bg-card border-border/50"
+              : "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground border-primary/20"
           )}
         >
           {message.text && (
-            <p className="text-sm whitespace-pre-wrap break-words overflow-wrap-anywhere">
+            <div className={cn(
+              "text-sm whitespace-pre-wrap break-words overflow-wrap-anywhere leading-relaxed",
+              isAssistant ? "text-foreground" : "text-primary-foreground"
+            )}>
               {message.text}
-            </p>
+            </div>
           )}
 
           {message.content_blocks && message.content_blocks.length > 0 && (
-            <div className="mt-2 space-y-2">
+            <div className="mt-3 space-y-3">
               {message.content_blocks.map((block) => (
                 <ContentBlockRenderer key={block.content_id} block={block} />
               ))}
@@ -53,11 +56,14 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           )}
 
           {!message.is_complete && hasPendingTasks && (
-            <div className="mt-2 space-y-1">
+            <div className="mt-3 space-y-2 pt-2 border-t border-border/50">
               {Object.entries(message.pending_tasks).map(([taskId, task]) => {
                 const taskData = task as { task_type?: string; progress?: number; status?: string }
                 return (
-                  <div key={taskId} className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div key={taskId} className={cn(
+                    "flex items-center gap-2 text-xs",
+                    isAssistant ? "text-muted-foreground" : "text-primary-foreground/80"
+                  )}>
                     <Loader2 className="h-3 w-3 animate-spin" />
                     <span>
                       {taskData.task_type || "Processing"}...{" "}
@@ -72,15 +78,15 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           )}
         </Card>
 
-        <span className="text-xs text-muted-foreground px-1">
-          {new Date(message.created_at).toLocaleTimeString()}
+        <span className="text-xs text-muted-foreground px-1 font-medium">
+          {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>
 
       {!isAssistant && (
-        <Avatar className="h-8 w-8">
-          <AvatarFallback className="bg-secondary">
-            <User className="h-4 w-4" />
+        <Avatar className="h-10 w-10 border-2 border-muted shadow-sm">
+          <AvatarFallback className="bg-gradient-to-br from-secondary to-muted">
+            <User className="h-5 w-5 text-secondary-foreground" />
           </AvatarFallback>
         </Avatar>
       )}
@@ -92,8 +98,8 @@ function ContentBlockRenderer({ block }: { block: ContentBlock }) {
   // Handle placeholder
   if (block.is_placeholder) {
     return (
-      <div className="flex items-center gap-2 p-3 bg-background/50 rounded-md">
-        <Loader2 className="h-4 w-4 animate-spin" />
+      <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50">
+        <Loader2 className="h-4 w-4 animate-spin text-primary" />
         <span className="text-xs text-muted-foreground">
           Loading {block.content_type}...
         </span>
@@ -113,7 +119,7 @@ function ContentBlockRenderer({ block }: { block: ContentBlock }) {
       return <FileBlock block={block} />
     default:
       return (
-        <div className="text-xs text-muted-foreground">
+        <div className="text-xs text-muted-foreground px-1">
           Unknown content type: {block.content_type}
         </div>
       )
@@ -130,7 +136,7 @@ function ImageBlock({ block }: { block: ContentBlock }) {
 
   if (!imageSrc) {
     return (
-      <div className="flex items-center gap-2 p-3 bg-background/50 rounded-md">
+      <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50">
         <ImageIcon className="h-4 w-4 text-muted-foreground" />
         <span className="text-xs text-muted-foreground">Image (no data)</span>
       </div>
@@ -138,19 +144,19 @@ function ImageBlock({ block }: { block: ContentBlock }) {
   }
 
   return (
-    <div className="relative">
+    <div className="relative group">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={imageSrc}
         alt={alt || caption || "Image"}
-        className="rounded-md max-w-full h-auto"
+        className="rounded-lg max-w-full h-auto border border-border/50 shadow-sm transition-all duration-200 group-hover:shadow-md"
         style={{
           maxHeight: "400px",
           objectFit: "contain",
         }}
       />
       {caption && (
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-xs text-muted-foreground mt-2 px-1">
           {caption}
         </p>
       )}
@@ -168,7 +174,7 @@ function VideoBlock({ block }: { block: ContentBlock }) {
 
   if (!videoSrc) {
     return (
-      <div className="flex items-center gap-2 p-3 bg-background/50 rounded-md">
+      <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50">
         <Video className="h-4 w-4 text-muted-foreground" />
         <span className="text-xs text-muted-foreground">Video (no data)</span>
       </div>
@@ -180,7 +186,7 @@ function VideoBlock({ block }: { block: ContentBlock }) {
       <video
         src={videoSrc}
         controls
-        className="rounded-md max-w-full h-auto"
+        className="rounded-lg max-w-full h-auto border border-border/50 shadow-sm"
         style={{
           maxHeight: "400px",
         }}
@@ -188,7 +194,7 @@ function VideoBlock({ block }: { block: ContentBlock }) {
         <track kind="captions" />
       </video>
       {title && (
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-xs text-muted-foreground mt-2 px-1">
           {title}
         </p>
       )}
@@ -206,7 +212,7 @@ function AudioBlock({ block }: { block: ContentBlock }) {
 
   if (!audioSrc) {
     return (
-      <div className="flex items-center gap-2 p-3 bg-background/50 rounded-md">
+      <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50">
         <Music className="h-4 w-4 text-muted-foreground" />
         <span className="text-xs text-muted-foreground">Audio (no data)</span>
       </div>
@@ -214,10 +220,10 @@ function AudioBlock({ block }: { block: ContentBlock }) {
   }
 
   return (
-    <div className="flex flex-col gap-2 p-3 bg-background/50 rounded-md">
+    <div className="flex flex-col gap-3 p-4 bg-muted/30 rounded-lg border border-border/50">
       <div className="flex items-center gap-2">
-        <Music className="h-4 w-4 text-muted-foreground" />
-        {title && <span className="text-xs font-medium">{title}</span>}
+        <Music className="h-4 w-4 text-primary" />
+        {title && <span className="text-sm font-medium">{title}</span>}
       </div>
       <audio src={audioSrc} controls className="w-full">
         <track kind="captions" />
@@ -243,11 +249,13 @@ function FileBlock({ block }: { block: ContentBlock }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-center gap-3 p-3 bg-background/50 rounded-md hover:bg-background transition-colors"
+      className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border border-border/50 hover:bg-muted/50 hover:border-primary/30 transition-all duration-200 hover:shadow-sm group"
     >
-      <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+      <div className="p-2 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
+        <FileText className="h-5 w-5 text-primary flex-shrink-0" />
+      </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{name || "File"}</p>
+        <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{name || "File"}</p>
         <p className="text-xs text-muted-foreground">
           {mime_type && <span>{mime_type}</span>}
           {size && <span className="ml-2">{formatSize(size)}</span>}

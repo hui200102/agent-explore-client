@@ -6,16 +6,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MessageBubble } from "./message-bubble"
 import { ChatInput } from "./chat-input"
-import { ToolCallIndicator } from "./tool-call-indicator"
+import { ToolCallIndicator, TypingIndicator } from "./tool-call-indicator"
 import { SessionStorage } from "@/lib/session-storage"
 import { useSSEStream } from "@/hooks/use-sse-stream"
 import { useMessageHistory } from "@/hooks/use-message-history"
 import { StreamEventHandler } from "@/lib/stream-event-handler"
 import { apiClient, type Message } from "@/lib/api-client"
-import { Loader2, AlertCircle, RefreshCw } from "lucide-react"
+import { Loader2, AlertCircle, RefreshCw, Bot } from "lucide-react"
 
 interface ChatContainerProps {
   userId?: string
+  sessionId: string | null
+  onSessionReady?: (sessionId: string) => void
+  onMessageSent?: (sessionId: string, messageText: string, messageCount: number) => void
 }
 
 interface ToolCallState {
@@ -23,11 +26,17 @@ interface ToolCallState {
   status?: string
 }
 
-export function ChatContainer({ userId = "user_default" }: ChatContainerProps) {
-  const [sessionId, setSessionId] = useState<string | null>(null)
+export function ChatContainer({ 
+  userId = "user_default",
+  sessionId: externalSessionId,
+  onSessionReady,
+  onMessageSent,
+}: ChatContainerProps) {
+  const [sessionId, setSessionId] = useState<string | null>(externalSessionId)
   const [error, setError] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [toolCallState, setToolCallState] = useState<ToolCallState | null>(null)
+  const [isAssistantTyping, setIsAssistantTyping] = useState(false)
   
   const scrollRef = useRef<HTMLDivElement>(null)
   
@@ -58,74 +67,55 @@ export function ChatContainer({ userId = "user_default" }: ChatContainerProps) {
     },
   })
 
-  // Initialize session from localStorage or create new (only once on mount)
+  // Sync with external sessionId and load messages
   useEffect(() => {
     let mounted = true
 
-    const initSession = async () => {
+    const loadSession = async () => {
+      if (!externalSessionId) {
+        setSessionId(null)
+        setMessages([])
+        setIsConnected(false)
+        return
+      }
+
       try {
         if (!mounted) return
         
         setError(null)
+        setSessionId(externalSessionId)
 
-        // Try to get session from localStorage
-        const storedSessionId = SessionStorage.getSessionId()
+        // Verify session exists
+        await apiClient.getSession(externalSessionId)
         
-        if (storedSessionId) {
-          console.log("Found stored session:", storedSessionId)
-          try {
-            // Verify session exists and load messages using history hook
-            await apiClient.getSession(storedSessionId)
-            
-            if (!mounted) return
-            setSessionId(storedSessionId)
-            
-            // Load messages after setting sessionId
-            await messageHistory.loadMessages(storedSessionId)
-          } catch (err) {
-            // Session invalid, clear and create new
-            console.warn("Stored session invalid, creating new session", err)
-            SessionStorage.clearSessionId()
-            await createNewSession()
-          }
-        } else {
-          // No stored session, create new
-          await createNewSession()
-        }
+        if (!mounted) return
 
+        // Load messages for this session
+        await messageHistory.loadMessages(externalSessionId)
+        
         if (mounted) {
           setIsConnected(true)
+          SessionStorage.setSessionId(externalSessionId)
+          onSessionReady?.(externalSessionId)
         }
       } catch (err) {
         if (mounted) {
-          setError(err instanceof Error ? err.message : "Failed to initialize session")
-          console.error("Session initialization error:", err)
+          setError(err instanceof Error ? err.message : "Failed to load session")
+          console.error("Session load error:", err)
+          setIsConnected(false)
         }
       }
     }
 
-    const createNewSession = async () => {
-      const sessionResponse = await apiClient.createSession({
-        user_id: userId,
-        metadata: { source: "web", created_at: new Date().toISOString() }
-      })
-      console.log("Created new session:", sessionResponse)
-      
-      if (mounted) {
-        setSessionId(sessionResponse.session_id)
-        SessionStorage.setSessionId(sessionResponse.session_id)
-      }
-    }
+    loadSession()
 
-    initSession()
-
-    // Cleanup on unmount
+    // Cleanup on unmount or session change
     return () => {
       mounted = false
       sseStream.unsubscribe()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Only run once on mount
+  }, [externalSessionId]) // Reload when sessionId changes
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -140,7 +130,7 @@ export function ChatContainer({ userId = "user_default" }: ChatContainerProps) {
     sseStream.subscribe(sessionId, messageId, "0")
   }
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, files?: File[]) => {
     if (!sessionId) {
       setError("No active session")
       return
@@ -157,17 +147,29 @@ export function ChatContainer({ userId = "user_default" }: ChatContainerProps) {
         pending_tasks: {},
         is_complete: true,
         parent_message_id: null,
-        metadata: {},
+        metadata: files ? { hasFiles: true, fileCount: files.length } : {},
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
       setMessages((prev) => [...prev, tempUserMessage])
 
+      // TODO: Handle file uploads here when backend is ready
+      // For now, we'll just send the text message
+      if (files && files.length > 0) {
+        console.log("Files to upload:", files)
+        // You can implement your file upload logic here
+        // Example:
+        // const uploadedFiles = await uploadFiles(files)
+        // Then attach the uploaded file URLs to the message
+      }
+
       // Send message to backend
-      console.log("Sending message:", content)
+      console.log("Sending message:", content, "with files:", files?.length || 0)
       const response = await apiClient.sendMessage(sessionId, {
-        content,
+        content: content || "(attached files)", // Fallback if only files are sent
         type: "text",
+        // TODO: Add file metadata here when backend supports it
+        // files: uploadedFileUrls,
       })
 
       console.log("Send message response:", response)
@@ -212,6 +214,17 @@ export function ChatContainer({ userId = "user_default" }: ChatContainerProps) {
 
       // Subscribe to assistant message stream
       subscribeToMessage(response.assistant_message_id)
+      
+      // Show typing indicator
+      setIsAssistantTyping(true)
+      // Hide typing indicator after a delay (will be replaced by actual message)
+      setTimeout(() => setIsAssistantTyping(false), 3000)
+
+      // Notify parent about message sent (for updating session metadata)
+      if (onMessageSent) {
+        const messageCount = messages.length + 2 // +2 for user and assistant messages
+        onMessageSent(sessionId, content || "(attached files)", messageCount)
+      }
 
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message")
@@ -222,21 +235,23 @@ export function ChatContainer({ userId = "user_default" }: ChatContainerProps) {
     }
   }
 
-  // Clear session and start new
-  const handleNewSession = () => {
-    SessionStorage.clearSessionId()
-    setSessionId(null)
+  // Clear current session data (actual session management handled by parent)
+  const handleClearSession = () => {
     setMessages([])
     setToolCallState(null)
-    window.location.reload()
+    setIsAssistantTyping(false)
+    sseStream.unsubscribe()
   }
 
   if (messageHistory.isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-3">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
-          <p className="text-sm text-muted-foreground">Loading session...</p>
+      <div className="flex items-center justify-center h-full bg-gradient-to-br from-muted/20 to-background">
+        <div className="text-center space-y-4 animate-fade-in-up">
+          <div className="relative">
+            <div className="absolute inset-0 blur-xl bg-primary/20 rounded-full animate-pulse"></div>
+            <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto relative" />
+          </div>
+          <p className="text-sm font-medium text-foreground">Loading session...</p>
         </div>
       </div>
     )
@@ -244,8 +259,8 @@ export function ChatContainer({ userId = "user_default" }: ChatContainerProps) {
 
   if (error && !isConnected) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Card className="max-w-md">
+      <div className="flex items-center justify-center h-full bg-gradient-to-br from-muted/20 to-background">
+        <Card className="max-w-md shadow-xl border-destructive/20 animate-bounce-in">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-destructive">
               <AlertCircle className="h-5 w-5" />
@@ -254,8 +269,8 @@ export function ChatContainer({ userId = "user_default" }: ChatContainerProps) {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()} className="w-full">
-              Retry
+            <Button onClick={() => window.location.reload()} className="w-full shadow-md hover:shadow-lg transition-shadow">
+              Retry Connection
             </Button>
           </CardContent>
         </Card>
@@ -264,43 +279,64 @@ export function ChatContainer({ userId = "user_default" }: ChatContainerProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-gradient-to-b from-muted/5 via-background to-muted/5">
       {/* Session info bar */}
-      <div className="px-4 py-2 border-b bg-muted/30 flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">
-          Session: {sessionId?.slice(0, 8)}...
-        </span>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={handleNewSession}
-          className="h-7 text-xs"
-        >
-          <RefreshCw className="h-3 w-3 mr-1" />
-          New Session
-        </Button>
-      </div>
+      {sessionId && (
+        <div className="px-4 py-3 border-b bg-gradient-to-r from-background via-muted/5 to-background backdrop-blur-sm flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse shadow-sm shadow-green-500/50"></div>
+            <span className="text-xs font-medium text-muted-foreground">
+              Session: <span className="text-foreground font-mono">{sessionId.slice(0, 8)}...</span>
+            </span>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {messages.length} message{messages.length !== 1 ? "s" : ""}
+          </div>
+        </div>
+      )}
 
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+      <ScrollArea className="flex-1 p-6" ref={scrollRef}>
         {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            <div className="text-center space-y-2">
-              <p className="text-lg font-medium">Start a conversation</p>
-              <p className="text-sm">Send a message to begin chatting with the AI assistant</p>
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center space-y-4 max-w-md animate-fade-in-up">
+              <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
+                <Bot className="h-8 w-8 text-primary-foreground" />
+              </div>
+              <div>
+                <p className="text-xl font-semibold text-foreground mb-2">Welcome to AI Assistant</p>
+                <p className="text-sm text-muted-foreground">
+                  Start a conversation by typing a message below. I'm here to help with any questions or tasks you have.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 justify-center mt-6">
+                {["Ask a question", "Get help", "Start chatting"].map((suggestion, i) => (
+                  <div 
+                    key={i}
+                    className="px-4 py-2 rounded-full bg-muted/50 text-xs text-muted-foreground border border-border/50"
+                  >
+                    {suggestion}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-2 max-w-4xl mx-auto">
             {messages.map((message) => (
               <MessageBubble key={message.message_id} message={message} />
             ))}
+            
+            {/* Typing indicator - shows when assistant is about to respond */}
+            {isAssistantTyping && messages.length > 0 && !messages[messages.length - 1]?.text && (
+              <TypingIndicator />
+            )}
             
             {/* Tool call indicator - shows temporarily when tool is being called */}
             {toolCallState && (
               <ToolCallIndicator 
                 toolName={toolCallState.toolName}
                 status={toolCallState.status}
-                className="ml-11"
+                className="ml-14"
               />
             )}
           </div>
@@ -315,18 +351,20 @@ export function ChatContainer({ userId = "user_default" }: ChatContainerProps) {
 
       {/* Reconnecting indicator */}
       {sseStream.isReconnecting && (
-        <div className="px-4 py-2 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 text-sm border-t flex items-center gap-2">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          Reconnecting to server...
+        <div className="px-4 py-3 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 text-sm border-t border-yellow-500/20 flex items-center justify-center gap-2 backdrop-blur-sm">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="font-medium">Reconnecting to server...</span>
         </div>
       )}
 
       {/* Error message */}
       {(error || sseStream.error || messageHistory.error) && isConnected && !sseStream.isReconnecting && (
-        <div className="px-4 py-2 bg-destructive/10 text-destructive text-sm border-t">
-          {error || sseStream.error || messageHistory.error}
+        <div className="px-4 py-3 bg-destructive/10 text-destructive text-sm border-t border-destructive/20 flex items-center justify-center gap-2 backdrop-blur-sm">
+          <AlertCircle className="h-4 w-4" />
+          <span className="font-medium">{error || sseStream.error || messageHistory.error}</span>
         </div>
       )}
     </div>
   )
 }
+
