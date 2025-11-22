@@ -4,6 +4,7 @@
  */
 
 import type { ContentBlockInput } from "./api-client"
+import type { UploadedFileInfo } from "@/components/chat/chat-input"
 
 /**
  * Convert a File object to base64 string
@@ -239,6 +240,55 @@ export async function createFileBlockFromFile(
 /**
  * Automatically create content blocks from mixed content (text + files)
  * This is a convenience function that handles common use cases
+ */
+/**
+ * Create content blocks from uploaded files (using URLs)
+ */
+export function createContentBlocksFromUploadedFiles(
+  text?: string,
+  uploadedFiles?: UploadedFileInfo[]
+): ContentBlockInput[] {
+  const blocks: ContentBlockInput[] = []
+  
+  // Add text block if present
+  if (text && text.trim()) {
+    blocks.push(createTextBlock(text.trim()))
+  }
+  
+  // Add file blocks using URLs (no base64)
+  if (uploadedFiles && uploadedFiles.length > 0) {
+    for (const file of uploadedFiles) {
+      if (file.type.startsWith("image/")) {
+        blocks.push(createImageBlockFromUrl(file.url, {
+          alt: file.name,
+          summary: file.analysis?.dense_summary,
+        }))
+      } else if (file.type.startsWith("video/")) {
+        blocks.push(createVideoBlockFromUrl(file.url, {
+          title: file.name,
+          summary: file.analysis?.dense_summary,
+        }))
+      } else if (file.type.startsWith("audio/")) {
+        blocks.push(createAudioBlockFromUrl(file.url, {
+          title: file.name,
+          summary: file.analysis?.dense_summary,
+        }))
+      } else {
+        blocks.push(createFileBlockFromUrl(file.url, file.name, {
+          size: file.size,
+          mime_type: file.type,
+          summary: file.analysis?.dense_summary,
+        }))
+      }
+    }
+  }
+  
+  return blocks
+}
+
+/**
+ * Legacy: Create content blocks from File objects (using base64)
+ * @deprecated Use createContentBlocksFromUploadedFiles instead
  */
 export async function createContentBlocks(
   text?: string,

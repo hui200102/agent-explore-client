@@ -78,8 +78,17 @@ export function FilePreview({ file, onRemove, onRetry, compact = false }: FilePr
             {file.uploadStatus === "uploading" && file.uploadProgress !== undefined && (
               <span className="text-primary font-medium">{file.uploadProgress}%</span>
             )}
+            {file.uploadStatus === "success" && file.analysisStatus === "analyzing" && (
+              <span className="text-blue-500 font-medium">Analyzing...</span>
+            )}
+            {file.uploadStatus === "success" && file.analysisStatus === "complete" && (
+              <span className="text-green-600 font-medium">✓ Ready</span>
+            )}
             {file.uploadStatus === "error" && file.error && (
               <span className="text-destructive">{file.error}</span>
+            )}
+            {file.analysisStatus === "error" && file.analysisError && (
+              <span className="text-orange-500 text-[10px]">Analysis failed</span>
             )}
           </div>
         </div>

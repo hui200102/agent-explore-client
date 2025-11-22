@@ -46,7 +46,7 @@ export interface ImageContent {
   alt?: string;
   caption?: string;
   summary?: string;       // AI生成或用户提供的图片内容描述
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface VideoContent {
@@ -59,7 +59,7 @@ export interface VideoContent {
   thumbnail_url?: string;
   title?: string;
   summary?: string;       // AI生成或用户提供的视频内容描述
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AudioContent {
@@ -71,7 +71,7 @@ export interface AudioContent {
   channels?: number;
   title?: string;
   summary?: string;       // AI生成或用户提供的音频内容描述
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface FileContent {
@@ -83,7 +83,7 @@ export interface FileContent {
   extension?: string;
   description?: string;
   summary?: string;       // AI生成或用户提供的文件内容总结
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ContentBlock {
@@ -100,7 +100,7 @@ export interface ContentBlock {
   file?: FileContent;
   
   task_id?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -114,10 +114,10 @@ export interface Message {
   session_id: string;
   role: MessageRole;
   content_blocks: ContentBlock[];
-  pending_tasks: Record<string, any>;
+  pending_tasks: Record<string, unknown>;
   is_complete: boolean;
   parent_message_id?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -127,10 +127,10 @@ export interface Message {
 // ============================================================================
 
 export interface Session {
-  session_id: string;
+  session_id: string;  // MongoDB 自动生成（ObjectId 转字符串）
   user_id?: string;
   status: SessionStatus;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -142,7 +142,7 @@ export interface Session {
 // --- 创建会话 ---
 export interface CreateSessionRequest {
   user_id?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreateSessionResponse {
@@ -177,7 +177,7 @@ export interface GetUserSessionsResponse {
 
 // --- 更新会话元数据 ---
 export interface UpdateSessionMetadataRequest {
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface UpdateSessionMetadataResponse {
@@ -220,7 +220,7 @@ export interface SendMessageRequest {
   }>;
   role?: MessageRole;        // 默认user
   parent_message_id?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface SendMessageResponse {
@@ -292,8 +292,8 @@ export interface StreamEvent {
   message_id: string;
   session_id: string;
   sequence: number;
-  payload?: Record<string, any>;
-  metadata?: Record<string, any>;
+  payload?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -362,6 +362,19 @@ export interface HealthCheckResponse {
   timestamp: string;
 }
 
+// --- 资源分析 ---
+export type AssetType = "image" | "video" | "audio" | "pdf" | "document" | "text" | "code" | "other";
+
+export interface AnalyzeAssetsRequest {
+  type: AssetType;
+  url?: string;
+}
+
+export interface AnalyzeAssetsResponse {
+  dense_summary: string;  // 详细内容描述
+  keywords: string;       // 逗号分隔的关键词
+}
+
 // ============================================================================
 // 错误类型
 // ============================================================================
@@ -384,5 +397,5 @@ export interface SSEOptions {
   onTaskCompleted?: (payload: TaskCompletedPayload) => void;
   onTaskFailed?: (payload: TaskFailedPayload) => void;
   onMessageEnd?: () => void;
-  onError?: (error: any) => void;
+  onError?: (error: unknown) => void;
 }

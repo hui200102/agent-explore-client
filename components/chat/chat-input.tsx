@@ -3,13 +3,21 @@
 import { useState, KeyboardEvent, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Send, Loader2, Paperclip, X } from "lucide-react"
+import { Send, Loader2, Paperclip, X, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useFileUpload } from "@/hooks/use-file-upload"
+import { useFileUpload, type FileAnalysis } from "@/hooks/use-file-upload"
 import { FilePreviewList } from "./file-preview"
 
+export interface UploadedFileInfo {
+  url: string
+  name: string
+  type: string
+  size: number
+  analysis?: FileAnalysis
+}
+
 interface ChatInputProps {
-  onSend: (message: string, files?: File[]) => Promise<void>
+  onSend: (message: string, files?: UploadedFileInfo[]) => Promise<void>
   disabled?: boolean
   placeholder?: string
 }
@@ -39,6 +47,13 @@ export function ChatInput({
   const handleSend = async () => {
     if ((!message.trim() && fileUpload.files.length === 0) || isSending) return
 
+    // Check if any files have upload errors
+    const hasFailedFiles = fileUpload.files.some(f => f.uploadStatus === "error")
+    if (hasFailedFiles) {
+      console.error("Cannot send: some files failed to upload")
+      return
+    }
+
     // Check if all files are uploaded successfully
     const hasUploadingFiles = fileUpload.files.some(f => f.uploadStatus === "uploading")
     if (hasUploadingFiles) {
@@ -46,14 +61,29 @@ export function ChatInput({
       return
     }
 
+    // Check if any files are still being analyzed
+    const hasAnalyzingFiles = fileUpload.files.some(f => 
+      f.analysisStatus === "pending" || f.analysisStatus === "analyzing"
+    )
+    if (hasAnalyzingFiles) {
+      console.warn("Please wait for file analysis to complete")
+      return
+    }
+
     setIsSending(true)
     try {
-      // Get successfully uploaded files
-      const successfulFiles = fileUpload.files
-        .filter(f => f.uploadStatus === "success")
-        .map(f => f.file)
+      // Get successfully uploaded files with their URLs and analysis
+      const uploadedFiles: UploadedFileInfo[] = fileUpload.files
+        .filter(f => f.uploadStatus === "success" && f.url)
+        .map(f => ({
+          url: f.url!,
+          name: f.name,
+          type: f.type,
+          size: f.size,
+          analysis: f.analysis,
+        }))
       
-      await onSend(message.trim(), successfulFiles.length > 0 ? successfulFiles : undefined)
+      await onSend(message.trim(), uploadedFiles.length > 0 ? uploadedFiles : undefined)
       setMessage("")
       fileUpload.clearFiles()
       inputRef.current?.focus()
@@ -87,7 +117,11 @@ export function ChatInput({
   }
 
   const hasContent = message.trim() || fileUpload.files.length > 0
-  const canSend = hasContent && !isSending && !fileUpload.isUploading
+  const hasFailedFiles = fileUpload.files.some(f => f.uploadStatus === "error")
+  const hasAnalyzingFiles = fileUpload.files.some(f => 
+    f.analysisStatus === "pending" || f.analysisStatus === "analyzing"
+  )
+  const canSend = hasContent && !isSending && !fileUpload.isUploading && !hasFailedFiles && !hasAnalyzingFiles
 
   return (
     <div className="border-t bg-gradient-to-b from-background to-muted/20">
@@ -184,6 +218,17 @@ export function ChatInput({
           {fileUpload.isUploading && (
             <p className="text-xs text-primary font-medium animate-pulse">
               Uploading files...
+            </p>
+          )}
+          {hasAnalyzingFiles && (
+            <p className="text-xs text-blue-500 font-medium animate-pulse">
+              Analyzing files...
+            </p>
+          )}
+          {hasFailedFiles && (
+            <p className="text-xs text-destructive font-medium flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              Upload failed - please retry or remove failed files
             </p>
           )}
         </div>

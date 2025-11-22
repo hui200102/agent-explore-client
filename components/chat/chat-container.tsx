@@ -12,7 +12,8 @@ import { useSSEStream } from "@/hooks/use-sse-stream"
 import { useMessageHistory } from "@/hooks/use-message-history"
 import { StreamEventHandler } from "@/lib/stream-event-handler"
 import { apiClient, type Message } from "@/lib/api-client"
-import { createContentBlocks } from "@/lib/content-block-utils"
+import { createContentBlocksFromUploadedFiles } from "@/lib/content-block-utils"
+import type { UploadedFileInfo } from "./chat-input"
 import { Loader2, AlertCircle, Bot } from "lucide-react"
 
 interface ChatContainerProps {
@@ -129,15 +130,15 @@ export function ChatContainer({
     sseStream.subscribe(sessionId, messageId, "0")
   }
 
-  const handleSendMessage = async (content: string, files?: File[]) => {
+  const handleSendMessage = async (content: string, files?: UploadedFileInfo[]) => {
     if (!sessionId) {
       setError("No active session")
       return
     }
 
     try {
-      // Build content blocks using utility function
-      const contentBlocks = await createContentBlocks(content, files)
+      // Build content blocks using utility function (with URLs, not base64)
+      const contentBlocks = createContentBlocksFromUploadedFiles(content, files)
       
       // Must have at least one content block
       if (contentBlocks.length === 0) {

@@ -1,5 +1,10 @@
 import { useState, useCallback } from "react"
-import { apiClient } from "@/lib/api-client"
+import { apiClient, type AssetType } from "@/lib/api-client"
+
+export interface FileAnalysis {
+  dense_summary: string // 详细的内容描述
+  keywords: string // 逗号分隔的关键词
+}
 
 export interface UploadedFile {
   id: string
@@ -12,6 +17,10 @@ export interface UploadedFile {
   uploadStatus: "pending" | "uploading" | "success" | "error"
   url?: string // URL from server after upload
   error?: string
+  // Analysis fields
+  analysisStatus?: "pending" | "analyzing" | "complete" | "error"
+  analysis?: FileAnalysis
+  analysisError?: string
 }
 
 export interface UseFileUploadOptions {
@@ -107,18 +116,84 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
                 ...f, 
                 uploadStatus: "success" as const, 
                 uploadProgress: 100,
-                url: presignedData.fileUrl // Use the public file URL
+                url: presignedData.fileUrl, // Use the public file URL
+                analysisStatus: "pending" as const
               }
             : f
         )
       )
 
-      const updatedFile = { 
-        ...uploadedFile, 
-        uploadStatus: "success" as const, 
-        url: presignedData.fileUrl 
+      // Step 4: Analyze the uploaded file
+      try {
+        // Update status to analyzing
+        setFiles(prev => 
+          prev.map(f => 
+            f.id === uploadedFile.id 
+              ? { ...f, analysisStatus: "analyzing" as const }
+              : f
+          )
+        )
+
+        // Determine asset type from file type
+        const assetType = getAssetType(uploadedFile.file.type)
+
+        const analysisResult = await apiClient.analyzeAsset({
+          type: assetType,
+          url: presignedData.fileUrl,
+        })
+
+        // Update with analysis result
+        setFiles(prev => 
+          prev.map(f => 
+            f.id === uploadedFile.id 
+              ? { 
+                  ...f, 
+                  analysisStatus: "complete" as const,
+                  analysis: analysisResult
+                }
+              : f
+          )
+        )
+
+        const updatedFile = { 
+          ...uploadedFile, 
+          uploadStatus: "success" as const, 
+          url: presignedData.fileUrl,
+          analysisStatus: "complete" as const,
+          analysis: analysisResult
+        }
+        onUploadComplete?.(updatedFile)
+
+      } catch (analysisError) {
+        // If analysis fails, still mark upload as complete but note analysis error
+        const analysisErrorMessage = analysisError instanceof Error 
+          ? analysisError.message 
+          : "Failed to analyze file"
+        
+        setFiles(prev => 
+          prev.map(f => 
+            f.id === uploadedFile.id 
+              ? { 
+                  ...f, 
+                  analysisStatus: "error" as const,
+                  analysisError: analysisErrorMessage
+                }
+              : f
+          )
+        )
+
+        console.error("File analysis failed:", analysisError)
+        
+        // Still call onUploadComplete even if analysis fails
+        const updatedFile = { 
+          ...uploadedFile, 
+          uploadStatus: "success" as const, 
+          url: presignedData.fileUrl,
+          analysisStatus: "error" as const,
+          analysisError: analysisErrorMessage
+        }
+        onUploadComplete?.(updatedFile)
       }
-      onUploadComplete?.(updatedFile)
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Upload failed"
@@ -221,4 +296,25 @@ function readFileAsDataURL(file: File): Promise<string> {
     reader.onerror = reject
     reader.readAsDataURL(file)
   })
+}
+
+// Helper function to determine asset type from MIME type
+function getAssetType(mimeType: string): AssetType {
+  if (mimeType.startsWith("image/")) return "image"
+  if (mimeType.startsWith("video/")) return "video"
+  if (mimeType.startsWith("audio/")) return "audio"
+  if (mimeType === "application/pdf") return "pdf"
+  if (
+    mimeType.includes("document") ||
+    mimeType.includes("word") ||
+    mimeType.includes("excel") ||
+    mimeType.includes("powerpoint") ||
+    mimeType.includes("text")
+  ) {
+    return "document"
+  }
+  if (mimeType.includes("json") || mimeType.includes("javascript") || mimeType.includes("typescript")) {
+    return "code"
+  }
+  return "other"
 }

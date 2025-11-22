@@ -25,11 +25,13 @@ POST /api/v1/sessions
 **响应**:
 ```json
 {
-  "session_id": "session_abc123",
+  "session_id": "673f8a1c9e5d3a001a8f4b2e",
   "status": "active",
   "created_at": "2025-11-20T10:30:00.123456"
 }
 ```
+
+**说明**: `session_id` 由 MongoDB 自动生成（ObjectId 转字符串）
 
 ### 1.2 获取会话
 ```
@@ -477,46 +479,74 @@ GET /api/v1/health
 }
 ```
 
+### 3.2 资源分析
+```
+POST /api/v1/analyze-assets
+```
+
+**请求体**:
+```json
+{
+  "type": "image",
+  "url": "https://example.com/image.jpg"
+}
+```
+
+**type 可选值**: `image`, `video`, `audio`, `pdf`, `document`, `text`, `code`, `other`
+
+**响应**:
+```json
+{
+  "dense_summary": "详细的内容描述，包括场景、物体、动作、人物、上下文等",
+  "keywords": "关键词1, 关键词2, 关键词3"
+}
+```
+
 ---
 
 ## 4. 重要说明
 
-### 4.1 Content Blocks 顺序
+### 4.1 Session ID 生成
+- `session_id` 由 MongoDB 自动生成
+- 使用 MongoDB 的 ObjectId 转换为字符串格式
+- 无需客户端手动创建 UUID
+
+### 4.2 Content Blocks 顺序
 - **数组顺序就是显示顺序**
 - 系统自动分配 `sequence` 序号（1, 2, 3...）
 - 不需要手动设置 sequence
 - 响应中的 `content_blocks` 包含完整的 `sequence` 值
 
-### 4.2 URL vs Base64
+### 4.3 URL vs Base64
 - 小文件（<1MB）：可用 `data` 字段（Base64）
 - 大文件（>1MB）：建议用 `url` 字段
 - Base64 会增加约33%大小
 
-### 4.3 Summary 字段
+### 4.4 Summary 字段
 - 用于存储媒体内容的文本总结
 - 可选但强烈推荐（帮助AI理解内容）
 - 可以是AI生成或用户提供
 
-### 4.4 会话状态
+### 4.5 会话状态
 - `active` - 活跃会话
 - `inactive` - 非活跃会话
 - `completed` - 已完成会话
 
-### 4.5 消息角色
+### 4.6 消息角色
 - `user` - 用户消息
 - `assistant` - 助手消息
 - `system` - 系统消息
 - `agent` - 代理消息
 - `tool` - 工具消息
 
-### 4.6 任务状态
+### 4.7 任务状态
 - `pending` - 待处理
 - `processing` - 处理中
 - `completed` - 已完成
 - `failed` - 失败
 - `cancelled` - 已取消
 
-### 4.7 错误响应
+### 4.8 错误响应
 ```json
 {
   "detail": "错误描述"
@@ -565,6 +595,14 @@ curl -X POST http://localhost:8000/api/v1/sessions/session_abc123/close
 
 # 8. 删除会话
 curl -X DELETE http://localhost:8000/api/v1/sessions/session_abc123
+
+# 9. 分析资源
+curl -X POST http://localhost:8000/api/v1/analyze-assets \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "image",
+    "url": "https://example.com/image.jpg"
+  }'
 ```
 
 ---
@@ -612,4 +650,16 @@ const messages = await fetch(`/api/v1/sessions/${session.session_id}/messages`)
 // 搜索消息
 const searchResults = await fetch('/api/v1/messages/search?query=你好')
   .then(r => r.json());
+
+// 分析资源
+const analysis = await fetch('/api/v1/analyze-assets', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    type: 'image',
+    url: 'https://example.com/image.jpg'
+  })
+}).then(r => r.json());
+console.log('分析结果:', analysis.dense_summary);
+console.log('关键词:', analysis.keywords);
 ```

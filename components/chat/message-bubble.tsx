@@ -19,7 +19,6 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     .filter(block => !block.is_placeholder)
     .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
 
-  console.log("sortedBlocks", sortedBlocks)
 
   return (
     <div

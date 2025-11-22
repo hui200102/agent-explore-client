@@ -308,6 +308,20 @@ export interface UploadResponse {
   maxSizeMB?: number;
 }
 
+// ============= Asset Analysis Interfaces =============
+
+export type AssetType = "image" | "video" | "audio" | "pdf" | "document" | "text" | "code" | "other";
+
+export interface AnalyzeAssetsRequest {
+  type: AssetType;
+  url: string;
+}
+
+export interface AnalyzeAssetsResponse {
+  dense_summary: string;  
+  keywords: string;
+}
+
 // ============= Health Check Interface =============
 
 export interface HealthResponse {
@@ -812,6 +826,25 @@ export class ApiClient {
       xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
       xhr.send(file);
     });
+  }
+
+  /**
+   * Analyze uploaded asset (image, video, audio, etc.)
+   * POST /api/v1/analyze-assets
+   */
+  async analyzeAsset(request: AnalyzeAssetsRequest): Promise<AnalyzeAssetsResponse> {
+    const response = await fetch(`${this.agentBaseUrl}/analyze-assets`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to analyze asset" }));
+      throw new Error(error.detail || "Failed to analyze asset");
+    }
+
+    return response.json();
   }
 
   // ============= Health Check =============
