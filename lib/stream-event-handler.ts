@@ -82,7 +82,7 @@ export class StreamEventHandler {
    */
   private handleTextDelta(event: StreamEvent): void {
     this.updateMessage(event.message_id, (message) => {
-      const delta = (event.payload.delta as string) || ""
+      const delta = (event.payload?.delta as string) || ""
       
       // Find the index of the last text content block
       let lastTextBlockIndex = -1
@@ -104,19 +104,19 @@ export class StreamEventHandler {
         console.log(`[TextDelta] Appended to text block ${updatedBlocks[lastTextBlockIndex].content_id}:`, delta)
       } else {
         // Create a new text block if none exists
+        const now = new Date().toISOString()
         const newTextBlock: ContentBlock = {
           content_id: `text_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           content_type: "text",
           text: delta,
           sequence: message.content_blocks.length + 1,
           is_placeholder: false,
+          created_at: now,
+          updated_at: now,
         }
         message.content_blocks = [...message.content_blocks, newTextBlock]
         console.log(`[TextDelta] Created new text block:`, newTextBlock.content_id)
       }
-      
-      // Also update message.text for compatibility
-      message.text += delta
       
       return message
     })
@@ -129,14 +129,19 @@ export class StreamEventHandler {
     console.log("[ContentAdded] Adding content:", event.payload)
 
     this.updateMessage(event.message_id, (message) => {
+      if (!event.payload) return message
+      
       const contentType = event.payload.content_type as "text" | "image" | "video" | "audio" | "file"
       const hasData = event.payload.text || event.payload.image || event.payload.video || event.payload.audio || event.payload.file
+      const now = new Date().toISOString()
 
       const newBlock: ContentBlock = {
         content_id: event.payload.content_id as string,
         content_type: contentType,
-        sequence: event.payload.sequence as number | undefined,
+        sequence: event.payload.sequence as number ?? message.content_blocks.length + 1,
         is_placeholder: !hasData,
+        created_at: now,
+        updated_at: now,
       }
 
       // Add type-specific data if available
@@ -164,11 +169,6 @@ export class StreamEventHandler {
       
       console.log("[ContentAdded] Content block added and sorted:", newBlock, "Total blocks:", message.content_blocks.length)
       
-      // Update message.text if it's a text block
-      if (contentType === "text" && event.payload.text) {
-        message.text += event.payload.text as string
-      }
-      
       return message
     })
   }
@@ -180,6 +180,8 @@ export class StreamEventHandler {
     console.log("[ContentUpdated] Updating content:", event.payload)
 
     this.updateMessage(event.message_id, (message) => {
+      if (!event.payload) return message
+      
       const contentId = event.payload.content_id as string
       const contentType = event.payload.content_type as string
       
@@ -259,6 +261,8 @@ export class StreamEventHandler {
     console.log("[TaskStarted] Task started:", event.payload)
 
     this.updateMessage(event.message_id, (message) => {
+      if (!event.payload) return message
+      
       message.pending_tasks = {
         ...message.pending_tasks,
         [event.payload.task_id as string]: {
@@ -278,6 +282,8 @@ export class StreamEventHandler {
     console.log("[TaskProgress] Task progress:", event.payload)
 
     this.updateMessage(event.message_id, (message) => {
+      if (!event.payload) return message
+      
       const taskId = event.payload.task_id as string
       if (message.pending_tasks[taskId]) {
         message.pending_tasks = {
@@ -300,6 +306,8 @@ export class StreamEventHandler {
     console.log("[TaskCompleted] Task completed/failed:", event.payload)
 
     this.updateMessage(event.message_id, (message) => {
+      if (!event.payload) return message
+      
       const completedTaskId = event.payload.task_id as string
       const newPendingTasks = { ...message.pending_tasks }
       delete newPendingTasks[completedTaskId]
@@ -347,6 +355,8 @@ export class StreamEventHandler {
   private handleToolEvent(event: StreamEvent): void {
     console.log("[ToolEvent] Tool event:", event.event_type, event.payload)
 
+    if (!event.payload) return
+    
     const toolName = (event.payload.tool_name || event.payload.tool || event.payload.name) as string
     const status = (event.payload.status || event.event_type) as string
 

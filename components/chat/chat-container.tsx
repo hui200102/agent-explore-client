@@ -6,14 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MessageBubble } from "./message-bubble"
 import { ChatInput } from "./chat-input"
-import { ToolCallIndicator, TypingIndicator } from "./tool-call-indicator"
+import { ToolCallIndicator } from "./tool-call-indicator"
 import { SessionStorage } from "@/lib/session-storage"
 import { useSSEStream } from "@/hooks/use-sse-stream"
 import { useMessageHistory } from "@/hooks/use-message-history"
 import { StreamEventHandler } from "@/lib/stream-event-handler"
 import { apiClient, type Message } from "@/lib/api-client"
 import { createContentBlocks } from "@/lib/content-block-utils"
-import { Loader2, AlertCircle, RefreshCw, Bot } from "lucide-react"
+import { Loader2, AlertCircle, Bot } from "lucide-react"
 
 interface ChatContainerProps {
   userId?: string
@@ -28,7 +28,6 @@ interface ToolCallState {
 }
 
 export function ChatContainer({ 
-  userId = "user_default",
   sessionId: externalSessionId,
   onSessionReady,
   onMessageSent,
@@ -37,7 +36,6 @@ export function ChatContainer({
   const [error, setError] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [toolCallState, setToolCallState] = useState<ToolCallState | null>(null)
-  const [isAssistantTyping, setIsAssistantTyping] = useState(false)
   
   const scrollRef = useRef<HTMLDivElement>(null)
   
@@ -146,23 +144,6 @@ export function ChatContainer({
         return
       }
 
-      // Add user message optimistically
-      const displayText = content || (files && files.length > 0 ? `[${files.length} file(s)]` : "")
-      const tempUserMessage: Message = {
-        message_id: `temp_user_${Date.now()}`,
-        session_id: sessionId,
-        role: "user",
-        text: displayText,
-        content_blocks: [],
-        pending_tasks: {},
-        is_complete: true,
-        parent_message_id: null,
-        metadata: files ? { hasFiles: true, fileCount: files.length } : {},
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-      setMessages((prev) => [...prev, tempUserMessage])
-
       // Send message to backend with new format
       console.log("Sending message with content_blocks:", contentBlocks)
       const response = await apiClient.sendMessage(sessionId, {
@@ -172,58 +153,45 @@ export function ChatContainer({
 
       console.log("Send message response:", response)
 
-      // Replace temp user message with real one and add assistant placeholder
+      // Add messages from response
       setMessages((prev) => {
-        // Remove temp message
-        const withoutTemp = prev.filter((m) => m.message_id !== tempUserMessage.message_id)
+        const newMessages: Message[] = [...prev]
         
-        // Create real user message
-        const realUserMessage: Message = {
-          message_id: response.message_id,
-          session_id: sessionId,
-          role: "user",
-          text: displayText,
-          content_blocks: [],
-          pending_tasks: {},
-          is_complete: true,
-          parent_message_id: null,
-          metadata: {},
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }
+        // Add user message from response (it includes the full content_blocks)
+        newMessages.push(response.message)
 
         // Create assistant message placeholder (if assistant_message_id exists)
-        const assistantMessage: Message | null = response.assistant_message_id ? {
-          message_id: response.assistant_message_id,
-          session_id: sessionId,
-          role: "assistant",
-          text: "",
-          content_blocks: [],
-          pending_tasks: {},
-          is_complete: false,
-          parent_message_id: response.message_id,
-          metadata: {},
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        } : null
+        if (response.assistant_message_id) {
+          const assistantMessage: Message = {
+            message_id: response.assistant_message_id,
+            session_id: sessionId,
+            role: "assistant",
+            content_blocks: [],
+            pending_tasks: {},
+            is_complete: false,
+            parent_message_id: response.message_id,
+            metadata: {},
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }
+          newMessages.push(assistantMessage)
+        }
 
-        return assistantMessage 
-          ? [...withoutTemp, realUserMessage, assistantMessage]
-          : [...withoutTemp, realUserMessage]
+        return newMessages
       })
 
       // Subscribe to assistant message stream (if exists)
       if (response.assistant_message_id) {
         subscribeToMessage(response.assistant_message_id)
-        
-        // Show typing indicator
-        setIsAssistantTyping(true)
-        // Hide typing indicator after a delay (will be replaced by actual message)
-        setTimeout(() => setIsAssistantTyping(false), 3000)
       }
 
       // Notify parent about message sent (for updating session metadata)
       if (onMessageSent) {
+        // Extract text from content blocks for display
+        const displayText = response.message.content_blocks
+          .filter(block => block.content_type === 'text')
+          .map(block => block.text)
+          .join(' ') || '[Message sent]'
         const messageCount = messages.length + (response.assistant_message_id ? 2 : 1)
         onMessageSent(sessionId, displayText, messageCount)
       }
@@ -237,13 +205,6 @@ export function ChatContainer({
     }
   }
 
-  // Clear current session data (actual session management handled by parent)
-  const handleClearSession = () => {
-    setMessages([])
-    setToolCallState(null)
-    setIsAssistantTyping(false)
-    sseStream.unsubscribe()
-  }
 
   if (messageHistory.isLoading) {
     return (
@@ -280,22 +241,48 @@ export function ChatContainer({
     )
   }
 
+  // Show message when no session exists
+  if (!sessionId) {
+    return (
+      <div className="flex items-center justify-center h-full bg-gradient-to-br from-muted/20 to-background">
+        <div className="text-center space-y-6 max-w-md animate-fade-in-up px-6">
+          <div className="relative">
+            <div className="absolute inset-0 blur-2xl bg-primary/20 rounded-full animate-pulse"></div>
+            <div className="mx-auto w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-2xl shadow-primary/30 relative">
+              <Bot className="h-10 w-10 text-primary-foreground" />
+            </div>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-foreground mb-3">Welcome to AI Assistant</p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              To get started, please create a new session by clicking the <span className="font-semibold text-primary">&quot;+ New Chat&quot;</span> button in the sidebar.
+            </p>
+          </div>
+          <div className="pt-4">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/10 border border-primary/20">
+              <div className="h-2 w-2 rounded-full bg-primary animate-pulse"></div>
+              <span className="text-xs font-medium text-primary">Ready to chat</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-muted/5 via-background to-muted/5">
       {/* Session info bar */}
-      {sessionId && (
-        <div className="px-4 py-3 border-b bg-gradient-to-r from-background via-muted/5 to-background backdrop-blur-sm flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse shadow-sm shadow-green-500/50"></div>
-            <span className="text-xs font-medium text-muted-foreground">
-              Session: <span className="text-foreground font-mono">{sessionId.slice(0, 8)}...</span>
-            </span>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {messages.length} message{messages.length !== 1 ? "s" : ""}
-          </div>
+      <div className="px-4 py-3 border-b bg-gradient-to-r from-background via-muted/5 to-background backdrop-blur-sm flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse shadow-sm shadow-green-500/50"></div>
+          <span className="text-xs font-medium text-muted-foreground">
+            Session: <span className="text-foreground font-mono">{sessionId.slice(0, 8)}...</span>
+          </span>
         </div>
-      )}
+        <div className="text-xs text-muted-foreground">
+          {messages.length} message{messages.length !== 1 ? "s" : ""}
+        </div>
+      </div>
 
       <ScrollArea className="flex-1 p-6" ref={scrollRef}>
         {messages.length === 0 ? (
@@ -305,9 +292,9 @@ export function ChatContainer({
                 <Bot className="h-8 w-8 text-primary-foreground" />
               </div>
               <div>
-                <p className="text-xl font-semibold text-foreground mb-2">Welcome to AI Assistant</p>
+                <p className="text-xl font-semibold text-foreground mb-2">Start a Conversation</p>
                 <p className="text-sm text-muted-foreground">
-                  Start a conversation by typing a message below. I'm here to help with any questions or tasks you have.
+                  Type a message below to begin chatting. I&apos;m here to help with any questions or tasks you have.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 justify-center mt-6">
@@ -327,11 +314,6 @@ export function ChatContainer({
             {messages.map((message) => (
               <MessageBubble key={message.message_id} message={message} />
             ))}
-            
-            {/* Typing indicator - shows when assistant is about to respond */}
-            {isAssistantTyping && messages.length > 0 && !messages[messages.length - 1]?.text && (
-              <TypingIndicator />
-            )}
             
             {/* Tool call indicator - shows temporarily when tool is being called */}
             {toolCallState && (

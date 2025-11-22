@@ -56,15 +56,25 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                 />
               ))}
             </div>
-          ) : (
-            message.text && (
-              <div className={cn(
-                "text-sm whitespace-pre-wrap break-words overflow-wrap-anywhere leading-relaxed",
-                isAssistant ? "text-foreground" : "text-primary-foreground"
+          ) : !message.is_complete ? (
+            // Show loading animation for incomplete messages with no content yet
+            <div className="flex items-center gap-2 py-1">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span className={cn(
+                "text-sm",
+                isAssistant ? "text-muted-foreground" : "text-primary-foreground/70"
               )}>
-                {message.text}
-              </div>
-            )
+                {isAssistant ? "Thinking..." : "Sending..."}
+              </span>
+            </div>
+          ) : (
+            // Only show "No content" for completed messages with no content
+            <div className={cn(
+              "text-sm text-muted-foreground italic",
+              isAssistant ? "text-muted-foreground" : "text-primary-foreground/70"
+            )}>
+              No content
+            </div>
           )}
 
           {!message.is_complete && hasPendingTasks && (

@@ -19,7 +19,7 @@ export default function Home() {
     autoLoad: true,
   })
 
-  // Initialize: Load existing session or create new one
+  // Initialize: Load existing session if available (don't auto-create)
   useEffect(() => {
     let mounted = true
 
@@ -36,13 +36,18 @@ export default function Home() {
               setCurrentSessionId(storedSessionId)
             }
           } catch (err) {
-            console.warn("Stored session invalid, creating new one", err)
+            console.warn("Stored session invalid, clearing it", err)
             SessionStorage.clearSessionId()
-            await createNewSession()
+            // Don't auto-create, let user create manually
+            if (mounted) {
+              setCurrentSessionId(null)
+            }
           }
         } else {
-          // No stored session, create new one
-          await createNewSession()
+          // No stored session, don't auto-create
+          if (mounted) {
+            setCurrentSessionId(null)
+          }
         }
       } catch (err) {
         console.error("Failed to initialize app:", err)
@@ -50,18 +55,6 @@ export default function Home() {
         if (mounted) {
           setIsInitializing(false)
         }
-      }
-    }
-
-    const createNewSession = async () => {
-      try {
-        const sessionId = await sessionList.createSession()
-        if (mounted && sessionId) {
-          setCurrentSessionId(sessionId)
-          SessionStorage.setSessionId(sessionId)
-        }
-      } catch (err) {
-        console.error("Failed to create session:", err)
       }
     }
 
@@ -92,8 +85,9 @@ export default function Home() {
   const handleDeleteSession = async (sessionId: string) => {
     const success = await sessionList.deleteSession(sessionId)
     if (success && sessionId === currentSessionId) {
-      // If we deleted the current session, create a new one
-      handleCreateSession()
+      // If we deleted the current session, clear it (don't auto-create)
+      setCurrentSessionId(null)
+      SessionStorage.clearSessionId()
     }
   }
 

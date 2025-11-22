@@ -76,9 +76,14 @@ export class ApiMessageStorage implements IMessageStorage {
       console.error("[ApiStorage] Search failed, falling back to local search:", error)
       // Fallback: Get all messages and filter locally
       const messages = await this.getMessages(sessionId, 1000, 0)
-      return messages.filter(m => 
-        m.text.toLowerCase().includes(query.toLowerCase())
-      )
+      const lowerQuery = query.toLowerCase()
+      return messages.filter(m => {
+        // Search in text content blocks
+        return m.content_blocks.some(block => 
+          block.content_type === "text" && 
+          block.text?.toLowerCase().includes(lowerQuery)
+        )
+      })
     }
   }
 
@@ -88,7 +93,18 @@ export class ApiMessageStorage implements IMessageStorage {
     by_role: Record<string, { count: number; completed: number }>;
   }> {
     const stats = await apiClient.getMessageStatistics(sessionId)
-    return stats
+    
+    // Convert the simplified API response to the expected format
+    const by_role: Record<string, { count: number; completed: number }> = {}
+    for (const [role, count] of Object.entries(stats.by_role)) {
+      by_role[role] = { count, completed: count } // Simplified: assume all are completed
+    }
+    
+    return {
+      total: stats.total,
+      completed: stats.total, // Simplified: assume all are completed
+      by_role
+    }
   }
 }
 

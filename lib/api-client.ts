@@ -20,10 +20,9 @@ export interface Session {
   session_id: string;
   user_id?: string | null;
   status: "active" | "inactive" | "completed";
-  current_message_id?: string | null;
   metadata?: Record<string, unknown>;
   created_at: string;
-  updated_at?: string | null;
+  updated_at: string;
 }
 
 export interface ListSessionsResponse {
@@ -140,18 +139,18 @@ export interface SendMessageResponse {
   message_id: string;
   session_id: string;
   assistant_message_id?: string;
+  message: Message;
 }
 
 export interface Message {
   message_id: string;
   session_id: string;
   role: "user" | "assistant" | "system" | "agent" | "tool";
-  text: string;
   content_blocks: ContentBlock[];
   pending_tasks: Record<string, unknown>;
   is_complete: boolean;
-  parent_message_id: string | null;
-  metadata: Record<string, unknown>;
+  parent_message_id?: string | null;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -177,22 +176,8 @@ export interface SearchMessagesResponse {
 
 export interface MessageStatistics {
   total: number;
-  completed: number;
-  by_role: {
-    user?: {
-      count: number;
-      completed: number;
-    };
-    assistant?: {
-      count: number;
-      completed: number;
-    };
-    system?: {
-      count: number;
-      completed: number;
-    };
-  };
-  session_id?: string | null;
+  by_role: Record<string, number>;
+  by_session?: Record<string, number>;
 }
 
 export interface DeleteMessagesResponse {
@@ -205,62 +190,96 @@ export interface DeleteMessagesResponse {
 
 export interface ContentBlock {
   content_id: string;
-  content_type: "text" | "image" | "video" | "audio" | "file";
-  sequence?: number;
-  is_placeholder?: boolean;
+  content_type: "text" | "image" | "video" | "audio" | "file" | "code" | "markdown" | "html" | "json" | "thinking";
+  sequence: number;
+  is_placeholder: boolean;
   text?: string;
   image?: ImageContent;
   video?: VideoContent;
   audio?: AudioContent;
   file?: FileContent;
+  task_id?: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ImageContent {
   url?: string;
   data?: string; // base64
-  caption?: string;
-  alt?: string;
   format?: string;
-  size?: number;
   width?: number;
   height?: number;
+  alt?: string;
+  caption?: string;
+  summary?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface VideoContent {
   url?: string;
   data?: string; // base64
-  title?: string;
   format?: string;
-  size?: number;
   duration?: number;
+  width?: number;
+  height?: number;
+  thumbnail_url?: string;
+  title?: string;
+  summary?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AudioContent {
   url?: string;
   data?: string; // base64
-  title?: string;
   format?: string;
-  size?: number;
   duration?: number;
+  sample_rate?: number;
+  channels?: number;
+  title?: string;
+  summary?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface FileContent {
+  name: string; // Required
   url?: string;
   data?: string; // base64
-  name?: string;
-  mime_type?: string;
   size?: number;
+  mime_type?: string;
+  extension?: string;
+  description?: string;
+  summary?: string;
+  metadata?: Record<string, unknown>;
 }
 
 // ============= SSE Stream Interfaces =============
 
+export type StreamEventType =
+  | "message_start"
+  | "message_end"
+  | "text_delta"
+  | "text_complete"
+  | "content_added"
+  | "content_updated"
+  | "content_removed"
+  | "task_started"
+  | "task_progress"
+  | "task_completed"
+  | "task_failed"
+  | "tool_call"
+  | "tool_result"
+  | "error"
+  | "ping";
+
 export interface StreamEvent {
   event_id: string;
-  event_type: "text_delta" | "content_added" | "content_updated" | "task_started" | "task_progress" | "task_completed" | "task_failed" | "message_end";
+  event_type: StreamEventType;
   message_id: string;
   session_id: string;
   sequence: number;
-  payload: Record<string, unknown>;
+  payload?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -475,18 +494,6 @@ export class ApiClient {
     return response.json();
   }
 
-  /**
-   * Get content block details
-   * This can be used to fetch full content data when events don't include it
-   */
-  async getContentBlock(messageId: string, contentId: string): Promise<ContentBlock> {
-    const response = await fetch(`${this.baseUrl}/messages/${messageId}/content/${contentId}`);
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: "Failed to get content" }));
-      throw new Error(error.detail || "Failed to get content");
-    }
-    return response.json();
-  }
 
   /**
    * Get conversation history
