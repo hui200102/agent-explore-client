@@ -3,7 +3,18 @@
  * Manages all SSE event processing logic
  */
 
-import type { StreamEvent, Message, ContentBlock, ImageContent, VideoContent, AudioContent, FileContent } from "./api-client"
+import type { 
+  StreamEvent, 
+  Message, 
+  ContentBlock, 
+  ImageContent, 
+  VideoContent, 
+  AudioContent, 
+  FileContent,
+  ToolCallPayload,
+  ToolResultPayload,
+  ErrorPayload
+} from "./api-client"
 
 interface ToolCallState {
   toolName?: string
@@ -65,6 +76,10 @@ export class StreamEventHandler {
       case "task_completed":
       case "task_failed":
         this.handleTaskCompleted(event)
+        break
+
+      case "error":
+        this.handleError(event)
         break
 
       case "message_end":
@@ -132,14 +147,19 @@ export class StreamEventHandler {
       if (!event.payload) return message
       
       const contentType = event.payload.content_type as "text" | "image" | "video" | "audio" | "file"
-      const hasData = event.payload.text || event.payload.image || event.payload.video || event.payload.audio || event.payload.file
       const now = new Date().toISOString()
+
+      // Use is_placeholder from payload if provided, otherwise determine from data presence
+      const hasData = event.payload.text || event.payload.image || event.payload.video || event.payload.audio || event.payload.file
+      const isPlaceholder = event.payload.is_placeholder !== undefined 
+        ? (event.payload.is_placeholder as boolean)
+        : !hasData
 
       const newBlock: ContentBlock = {
         content_id: event.payload.content_id as string,
         content_type: contentType,
         sequence: event.payload.sequence as number ?? message.content_blocks.length + 1,
-        is_placeholder: !hasData,
+        is_placeholder: isPlaceholder,
         created_at: now,
         updated_at: now,
       }
@@ -159,6 +179,11 @@ export class StreamEventHandler {
       }
       if (event.payload.file) {
         newBlock.file = event.payload.file as FileContent
+      }
+
+      // If placeholder, store the placeholder text for display
+      if (isPlaceholder && event.payload.placeholder) {
+        newBlock.text = event.payload.placeholder as string
       }
 
       // Add the new block
@@ -313,24 +338,66 @@ export class StreamEventHandler {
       delete newPendingTasks[completedTaskId]
       message.pending_tasks = newPendingTasks
       
-      // If task_completed includes content_id, remove any placeholder for same type
-      if (event.payload.content_id) {
-        const contentId = event.payload.content_id as string
-        console.log("[TaskCompleted] Content ID provided:", contentId)
-        
-        // Find and remove placeholder blocks of the same type
-        message.content_blocks = message.content_blocks.filter(block => {
-          // Remove if it's a placeholder and there's a real content block with same type
-          if (block.is_placeholder) {
-            console.log("[TaskCompleted] Removing placeholder:", block.content_id)
-            return false
-          }
-          return true
-        })
+      // Note: We don't remove placeholders here because content_updated 
+      // event will handle updating the placeholder to actual content
+      // This ensures proper replacement without content loss
+      
+      return message
+    })
+  }
+
+  /**
+   * Handle error events
+   * This only marks the specific message as failed, not the entire session
+   */
+  private handleError(event: StreamEvent): void {
+    console.error("[Error] Message processing failed for message:", event.message_id)
+    console.error("[Error] Payload:", event.payload)
+
+    if (!event.payload) return
+
+    const payload = event.payload as unknown as ErrorPayload
+    
+    // Ensure errorMessage is always a string
+    let errorMessage: string
+    if (typeof payload.error === 'string') {
+      errorMessage = payload.error
+    } else if (payload.error && typeof payload.error === 'object') {
+      // If error is an object, try to extract message
+      errorMessage = (payload.error as any).message || JSON.stringify(payload.error)
+    } else {
+      errorMessage = "Message processing failed"
+    }
+    
+    const errorDetails = payload.details
+
+    // Log error details for debugging
+    console.error("[Error] Error message:", errorMessage)
+    if (errorDetails) {
+      console.error("[Error] Error details:", errorDetails)
+      if (errorDetails.traceback) {
+        console.error("[Error] Traceback:", errorDetails.traceback)
+      }
+    }
+
+    // Update only this specific message to mark as failed
+    this.updateMessage(event.message_id, (message) => {
+      message.is_complete = true
+      message.pending_tasks = {}
+      
+      // Add error information to message metadata
+      message.metadata = {
+        ...message.metadata,
+        error: errorMessage,
+        error_details: errorDetails,
+        failed_at: new Date().toISOString(),
       }
       
       return message
     })
+
+    // Note: We don't set global error state here because this is just 
+    // a single message failure, not a system-wide error
   }
 
   /**
@@ -357,8 +424,24 @@ export class StreamEventHandler {
 
     if (!event.payload) return
     
-    const toolName = (event.payload.tool_name || event.payload.tool || event.payload.name) as string
-    const status = (event.payload.status || event.event_type) as string
+    let toolName: string
+    let status: string
+    
+    if (event.event_type === "tool_call") {
+      const payload = event.payload as unknown as ToolCallPayload
+      toolName = payload.tool_name
+      status = "calling"
+      console.log(`[ToolCall] Calling tool: ${toolName} with args:`, payload.tool_args)
+    } else if (event.event_type === "tool_result") {
+      const payload = event.payload as unknown as ToolResultPayload
+      toolName = payload.tool_name
+      status = payload.success ? "success" : "failed"
+      console.log(`[ToolResult] Tool ${toolName} ${status}:`, payload.result)
+    } else {
+      // Fallback for other tool-related events
+      toolName = (event.payload.tool_name || event.payload.tool || event.payload.name) as string
+      status = (event.payload.status || event.event_type) as string
+    }
 
     this.setToolCallState({
       toolName,

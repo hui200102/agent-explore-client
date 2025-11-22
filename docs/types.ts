@@ -46,7 +46,7 @@ export interface ImageContent {
   alt?: string;
   caption?: string;
   summary?: string;       // AI生成或用户提供的图片内容描述
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 export interface VideoContent {
@@ -59,7 +59,7 @@ export interface VideoContent {
   thumbnail_url?: string;
   title?: string;
   summary?: string;       // AI生成或用户提供的视频内容描述
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 export interface AudioContent {
@@ -71,7 +71,7 @@ export interface AudioContent {
   channels?: number;
   title?: string;
   summary?: string;       // AI生成或用户提供的音频内容描述
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 export interface FileContent {
@@ -83,7 +83,7 @@ export interface FileContent {
   extension?: string;
   description?: string;
   summary?: string;       // AI生成或用户提供的文件内容总结
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 export interface ContentBlock {
@@ -100,7 +100,7 @@ export interface ContentBlock {
   file?: FileContent;
   
   task_id?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
 }
@@ -114,10 +114,10 @@ export interface Message {
   session_id: string;
   role: MessageRole;
   content_blocks: ContentBlock[];
-  pending_tasks: Record<string, unknown>;
+  pending_tasks: Record<string, any>;
   is_complete: boolean;
   parent_message_id?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
 }
@@ -130,7 +130,7 @@ export interface Session {
   session_id: string;  // MongoDB 自动生成（ObjectId 转字符串）
   user_id?: string;
   status: SessionStatus;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
 }
@@ -142,7 +142,7 @@ export interface Session {
 // --- 创建会话 ---
 export interface CreateSessionRequest {
   user_id?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 export interface CreateSessionResponse {
@@ -177,7 +177,7 @@ export interface GetUserSessionsResponse {
 
 // --- 更新会话元数据 ---
 export interface UpdateSessionMetadataRequest {
-  metadata: Record<string, unknown>;
+  metadata: Record<string, any>;
 }
 
 export interface UpdateSessionMetadataResponse {
@@ -220,7 +220,7 @@ export interface SendMessageRequest {
   }>;
   role?: MessageRole;        // 默认user
   parent_message_id?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, any>;
 }
 
 export interface SendMessageResponse {
@@ -292,8 +292,8 @@ export interface StreamEvent {
   message_id: string;
   session_id: string;
   sequence: number;
-  payload?: Record<string, unknown>;
-  metadata?: Record<string, unknown>;
+  payload?: Record<string, any>;
+  metadata?: Record<string, any>;
   timestamp: string;
 }
 
@@ -351,6 +351,23 @@ export interface TaskFailedPayload {
   error: string;
 }
 
+export interface ToolCallPayload {
+  tool_call_id: string;
+  tool_name: string;
+  tool_args: Record<string, any>;
+}
+
+export interface ToolResultPayload {
+  tool_name: string;
+  result: any;
+  success: boolean;
+}
+
+export interface ErrorPayload {
+  error: string;
+  details: Record<string, any>;
+}
+
 // ============================================================================
 // 系统接口类型
 // ============================================================================
@@ -371,8 +388,8 @@ export interface AnalyzeAssetsRequest {
 }
 
 export interface AnalyzeAssetsResponse {
-  dense_summary: string;  // 详细内容描述
-  keywords: string;       // 逗号分隔的关键词
+  dense_summary: string; 
+  keywords: string; 
 }
 
 // ============================================================================
@@ -392,10 +409,12 @@ export interface SSEOptions {
   onTextDelta?: (payload: TextDeltaPayload) => void;
   onContentAdded?: (payload: ContentAddedPayload) => void;
   onContentUpdated?: (payload: ContentUpdatedPayload) => void;
+  onToolCall?: (payload: ToolCallPayload) => void;
+  onToolResult?: (payload: ToolResultPayload) => void;
   onTaskStarted?: (payload: TaskStartedPayload) => void;
   onTaskProgress?: (payload: TaskProgressPayload) => void;
   onTaskCompleted?: (payload: TaskCompletedPayload) => void;
   onTaskFailed?: (payload: TaskFailedPayload) => void;
   onMessageEnd?: () => void;
-  onError?: (error: unknown) => void;
+  onError?: (payload: ErrorPayload) => void;
 }

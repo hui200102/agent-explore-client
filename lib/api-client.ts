@@ -283,6 +283,83 @@ export interface StreamEvent {
   timestamp: string;
 }
 
+// ============= Stream Event Payload Types =============
+
+export interface TextDeltaPayload {
+  delta: string;
+}
+
+export interface ContentAddedPayload {
+  content_id: string;
+  content_type: string;
+  sequence: number;
+  is_placeholder: boolean;
+  placeholder?: string;
+  task_id?: string;
+  text?: string;
+}
+
+export interface ContentUpdatedPayload {
+  content_id: string;
+  content_type: string;
+  sequence: number;
+  task_id?: string;
+  image?: ImageContent;
+  video?: VideoContent;
+  audio?: AudioContent;
+  file?: FileContent;
+  text?: string;
+}
+
+export interface TaskStartedPayload {
+  task_id: string;
+  task_type: string;
+  status: string;
+  progress: number;
+  started_at: string;
+}
+
+export interface TaskProgressPayload {
+  task_id: string;
+  status: string;
+  progress: number;
+  updated_at: string;
+}
+
+export interface TaskCompletedPayload {
+  task_id: string;
+  status: string;
+  progress: number;
+  content_id?: string;
+}
+
+export interface TaskFailedPayload {
+  task_id: string;
+  status: string;
+  error: string;
+}
+
+export interface ToolCallPayload {
+  tool_call_id: string;
+  tool_name: string;
+  tool_args: Record<string, unknown>;
+}
+
+export interface ToolResultPayload {
+  tool_name: string;
+  result: unknown;
+  success: boolean;
+}
+
+export interface ErrorPayload {
+  error: string;
+  details?: {
+    type?: string;
+    traceback?: string;
+    [key: string]: unknown;
+  };
+}
+
 // ============= File Upload Interfaces =============
 
 export interface UploadRequest {
@@ -644,10 +721,13 @@ export class ApiClient {
         'text_delta',
         'content_added',
         'content_updated',
+        'tool_call',
+        'tool_result',
         'task_started',
         'task_progress',
         'task_completed',
         'task_failed',
+        'error',
         'message_end'
       ];
 

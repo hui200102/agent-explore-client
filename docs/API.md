@@ -431,12 +431,15 @@ GET /api/v1/sessions/{session_id}/messages/{message_id}/stream?last_id=0
 
 **事件类型**:
 - `text_delta` - 文本增量更新
-- `content_added` - 添加新内容块
+- `content_added` - 添加新内容块（包括 thinking 类型）
 - `content_updated` - 内容块更新
+- `tool_call` - 工具调用（不作为文本展示，仅通知前端）
+- `tool_result` - 工具执行结果（不作为文本展示，仅通知前端）
 - `task_started` - 任务开始
 - `task_progress` - 任务进度
 - `task_completed` - 任务完成
 - `task_failed` - 任务失败
+- `error` - 消息处理失败
 - `message_end` - 消息结束
 
 **事件示例**:
@@ -445,19 +448,32 @@ event: text_delta
 data: {"event_id":"evt_001","event_type":"text_delta","message_id":"msg_001","session_id":"session_abc123","sequence":1,"payload":{"delta":"你好"},"timestamp":"2025-11-20T10:30:01.123456"}
 
 event: content_added
-data: {"event_id":"evt_002","event_type":"content_added","message_id":"msg_001","session_id":"session_abc123","sequence":2,"payload":{"content_id":"content_001","content_type":"image","sequence":2,"is_placeholder":true,"placeholder":"generating..."},"timestamp":"2025-11-20T10:30:02.123456"}
+data: {"event_id":"evt_002","event_type":"content_added","message_id":"msg_001","session_id":"session_abc123","sequence":2,"payload":{"content_id":"content_001","content_type":"thinking","sequence":2,"text":"Let me think about this..."},"timestamp":"2025-11-20T10:30:01.500000"}
+
+event: tool_call
+data: {"event_id":"evt_003","event_type":"tool_call","message_id":"msg_001","session_id":"session_abc123","sequence":3,"payload":{"tool_call_id":"call_001","tool_name":"web_search","tool_args":{"query":"latest news"}},"timestamp":"2025-11-20T10:30:02.000000"}
+
+event: tool_result
+data: {"event_id":"evt_004","event_type":"tool_result","message_id":"msg_001","session_id":"session_abc123","sequence":4,"payload":{"tool_name":"web_search","result":"Search results...","success":true},"timestamp":"2025-11-20T10:30:03.000000"}
+
+event: content_added
+data: {"event_id":"evt_005","event_type":"content_added","message_id":"msg_001","session_id":"session_abc123","sequence":5,"payload":{"content_id":"content_002","content_type":"image","sequence":3,"is_placeholder":true,"placeholder":"generating..."},"timestamp":"2025-11-20T10:30:03.500000"}
 
 event: task_started
-data: {"event_id":"evt_003","event_type":"task_started","message_id":"msg_001","session_id":"session_abc123","sequence":3,"payload":{"task_id":"task_001","task_type":"image_generation","status":"processing","progress":0.0},"timestamp":"2025-11-20T10:30:02.123456"}
+data: {"event_id":"evt_006","event_type":"task_started","message_id":"msg_001","session_id":"session_abc123","sequence":6,"payload":{"task_id":"task_001","task_type":"image_generation","status":"processing","progress":0.0},"timestamp":"2025-11-20T10:30:04.000000"}
 
 event: task_completed
-data: {"event_id":"evt_004","event_type":"task_completed","message_id":"msg_001","session_id":"session_abc123","sequence":4,"payload":{"task_id":"task_001","status":"completed","progress":1.0},"timestamp":"2025-11-20T10:30:05.123456"}
+data: {"event_id":"evt_007","event_type":"task_completed","message_id":"msg_001","session_id":"session_abc123","sequence":7,"payload":{"task_id":"task_001","status":"completed","progress":1.0},"timestamp":"2025-11-20T10:30:06.000000"}
 
 event: content_updated
-data: {"event_id":"evt_005","event_type":"content_updated","message_id":"msg_001","session_id":"session_abc123","sequence":5,"payload":{"content_id":"content_001","content_type":"image","sequence":2,"task_id":"task_001","image":{"url":"https://...","format":"png"}},"timestamp":"2025-11-20T10:30:05.123456"}
+data: {"event_id":"evt_008","event_type":"content_updated","message_id":"msg_001","session_id":"session_abc123","sequence":8,"payload":{"content_id":"content_002","content_type":"image","sequence":3,"task_id":"task_001","image":{"url":"https://...","format":"png"}},"timestamp":"2025-11-20T10:30:06.123456"}
 
 event: message_end
-data: {"event_id":"evt_006","event_type":"message_end","message_id":"msg_001","session_id":"session_abc123","sequence":6,"payload":{},"timestamp":"2025-11-20T10:30:06.123456"}
+data: {"event_id":"evt_009","event_type":"message_end","message_id":"msg_001","session_id":"session_abc123","sequence":9,"payload":{},"timestamp":"2025-11-20T10:30:07.000000"}
+
+# 错误场景示例
+event: error
+data: {"event_id":"evt_err_001","event_type":"error","message_id":"msg_002","session_id":"session_abc123","sequence":5,"payload":{"error":"Agent execution failed","details":{"type":"APIError","traceback":"..."}},"timestamp":"2025-11-20T10:35:00.000000"}
 ```
 
 ---
@@ -636,6 +652,13 @@ const eventSource = new EventSource(
 eventSource.addEventListener('text_delta', (e) => {
   const data = JSON.parse(e.data);
   console.log('文本增量:', data.payload.delta);
+});
+
+eventSource.addEventListener('error', (e) => {
+  const data = JSON.parse(e.data);
+  console.error('消息处理失败:', data.payload.error);
+  console.error('错误详情:', data.payload.details);
+  eventSource.close();
 });
 
 eventSource.addEventListener('message_end', (e) => {

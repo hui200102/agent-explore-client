@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Card } from "@/components/ui/card"
 import type { Message, ContentBlock } from "@/lib/api-client"
-import { User, Image as ImageIcon, Video, Music, FileText, Loader2, Sparkles } from "lucide-react"
+import { User, Image as ImageIcon, Video, Music, FileText, Loader2, Sparkles, AlertCircle } from "lucide-react"
 
 interface MessageBubbleProps {
   message: Message
@@ -13,10 +13,18 @@ interface MessageBubbleProps {
 export function MessageBubble({ message }: MessageBubbleProps) {
   const isAssistant = message.role === "assistant"
   const hasPendingTasks = Object.keys(message.pending_tasks).length > 0
+  
+  // Extract error information - handle both string and object formats
+  const errorData = message.metadata?.error
+  const hasError = Boolean(errorData)
+  const errorMessage = typeof errorData === 'string' 
+    ? errorData 
+    : typeof errorData === 'object' && errorData !== null
+    ? (errorData as { message?: string }).message || 'Unknown error'
+    : undefined
 
-  // Sort content blocks by sequence
+  // Sort content blocks by sequence (keep placeholders to show loading state)
   const sortedBlocks = [...message.content_blocks]
-    .filter(block => !block.is_placeholder)
     .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
 
 
@@ -39,7 +47,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         <Card
           className={cn(
             "px-4 py-3 min-w-0 shadow-sm border transition-all duration-200 hover:shadow-md",
-            isAssistant
+            hasError
+              ? "bg-destructive/5 border-destructive/30"
+              : isAssistant
               ? "bg-card border-border/50"
               : "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground border-primary/20"
           )}
@@ -73,6 +83,23 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               isAssistant ? "text-muted-foreground" : "text-primary-foreground/70"
             )}>
               No content
+            </div>
+          )}
+
+          {/* Error display for this message */}
+          {hasError && errorMessage && (
+            <div className="mt-3 pt-3 border-t border-destructive/20">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-destructive">
+                    Message processing failed
+                  </p>
+                  <p className="text-xs text-destructive/80 mt-1">
+                    {errorMessage}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -124,13 +151,16 @@ function ContentBlockRenderer({
   isAssistant: boolean
   isFirst: boolean
 }) {
-  // Handle placeholder
+  // Handle placeholder - show loading state with custom message if available
   if (block.is_placeholder) {
+    // Get placeholder message from text field (set by stream handler) or use default
+    const placeholderMessage = block.text || `Generating ${block.content_type}...`
+    
     return (
-      <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50">
-        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+      <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50 animate-pulse">
+        <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
         <span className="text-xs text-muted-foreground">
-          Loading {block.content_type}...
+          {placeholderMessage}
         </span>
       </div>
     )
