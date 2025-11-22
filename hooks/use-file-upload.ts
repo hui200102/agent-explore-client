@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react"
+import { apiClient } from "@/lib/api-client"
 
 export interface UploadedFile {
   id: string
@@ -17,6 +18,7 @@ export interface UseFileUploadOptions {
   maxFiles?: number
   maxFileSize?: number // in bytes
   acceptedTypes?: string[] // e.g., ['image/*', 'application/pdf']
+  folder?: string // Upload folder path (e.g., 'videos', 'images', 'documents')
   onUploadComplete?: (file: UploadedFile) => void
   onUploadError?: (file: UploadedFile, error: string) => void
 }
@@ -26,6 +28,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
     maxFiles = 5,
     maxFileSize = 10 * 1024 * 1024, // 10MB default
     acceptedTypes = ["image/*", "video/*", "audio/*", "application/pdf", ".doc", ".docx", ".txt"],
+    folder = "assets", // Default folder
     onUploadComplete,
     onUploadError,
   } = options
@@ -73,24 +76,30 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
     )
 
     try {
-      // TODO: Implement actual upload logic here
-      // This is a placeholder that simulates an upload
-      
-      // Simulate progress
-      for (let progress = 0; progress <= 100; progress += 10) {
-        await new Promise(resolve => setTimeout(resolve, 100))
-        setFiles(prev => 
-          prev.map(f => 
-            f.id === uploadedFile.id 
-              ? { ...f, uploadProgress: progress }
-              : f
-          )
-        )
-      }
+      // Step 1: Get presigned upload URL from backend
+      const presignedData = await apiClient.getPresignedUploadUrl({
+        fileName: uploadedFile.file.name,
+        fileType: uploadedFile.file.type,
+        fileSize: uploadedFile.file.size,
+        folder,
+      })
 
-      // Simulate successful upload
-      const mockUrl = `https://example.com/uploads/${uploadedFile.id}`
-      
+      // Step 2: Upload file directly to R2/S3 with progress tracking
+      await apiClient.uploadFileWithProgress(
+        uploadedFile.file,
+        presignedData.uploadUrl,
+        (progress) => {
+          setFiles(prev => 
+            prev.map(f => 
+              f.id === uploadedFile.id 
+                ? { ...f, uploadProgress: progress }
+                : f
+            )
+          )
+        }
+      )
+
+      // Step 3: Mark upload as successful and store the public file URL
       setFiles(prev => 
         prev.map(f => 
           f.id === uploadedFile.id 
@@ -98,13 +107,17 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
                 ...f, 
                 uploadStatus: "success" as const, 
                 uploadProgress: 100,
-                url: mockUrl 
+                url: presignedData.fileUrl // Use the public file URL
               }
             : f
         )
       )
 
-      const updatedFile = { ...uploadedFile, uploadStatus: "success" as const, url: mockUrl }
+      const updatedFile = { 
+        ...uploadedFile, 
+        uploadStatus: "success" as const, 
+        url: presignedData.fileUrl 
+      }
       onUploadComplete?.(updatedFile)
 
     } catch (error) {
@@ -126,7 +139,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
     } finally {
       setIsUploading(false)
     }
-  }, [onUploadComplete, onUploadError])
+  }, [folder, onUploadComplete, onUploadError])
 
   const addFiles = useCallback(async (newFiles: File[]) => {
     if (files.length + newFiles.length > maxFiles) {

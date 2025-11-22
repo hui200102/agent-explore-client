@@ -283,6 +283,31 @@ export interface StreamEvent {
   timestamp: string;
 }
 
+// ============= File Upload Interfaces =============
+
+export interface UploadRequest {
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  folder?: string;
+}
+
+export interface PresignedUrlData {
+  uploadUrl: string;
+  fileUrl: string;
+  key: string;
+  expiresIn: number;
+  method: 'PUT';
+}
+
+export interface UploadResponse {
+  success: boolean;
+  data: PresignedUrlData;
+  error?: string;
+  maxSize?: number;
+  maxSizeMB?: number;
+}
+
 // ============= Health Check Interface =============
 
 export interface HealthResponse {
@@ -293,13 +318,17 @@ export interface HealthResponse {
 
 // ============= API Client =============
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+const AGENT_API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
+const BACKEND_API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_API_BASE_URL || "/api";
+
 
 export class ApiClient {
-  private baseUrl: string;
+  private agentBaseUrl: string;
+  private backendBaseUrl: string;
 
-  constructor(baseUrl: string = API_BASE_URL) {
-    this.baseUrl = baseUrl;
+  constructor() {
+    this.agentBaseUrl = AGENT_API_BASE_URL;
+    this.backendBaseUrl = BACKEND_API_BASE_URL;
   }
 
   // ============= Session Management =============
@@ -309,7 +338,7 @@ export class ApiClient {
    * POST /api/v1/sessions
    */
   async createSession(request: CreateSessionRequest = {}): Promise<SessionResponse> {
-    const response = await fetch(`${this.baseUrl}/sessions`, {
+    const response = await fetch(`${this.agentBaseUrl}/sessions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
@@ -326,7 +355,7 @@ export class ApiClient {
    * GET /api/v1/sessions/{session_id}
    */
   async getSession(sessionId: string): Promise<Session> {
-    const response = await fetch(`${this.baseUrl}/sessions/${sessionId}`);
+    const response = await fetch(`${this.agentBaseUrl}/sessions/${sessionId}`);
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: "Failed to get session" }));
       throw new Error(error.detail || "Failed to get session");
@@ -350,7 +379,7 @@ export class ApiClient {
     if (params?.limit !== undefined) queryParams.append("limit", params.limit.toString());
     if (params?.offset !== undefined) queryParams.append("offset", params.offset.toString());
 
-    const url = `${this.baseUrl}/sessions${queryParams.toString() ? `?${queryParams}` : ""}`;
+    const url = `${this.agentBaseUrl}/sessions${queryParams.toString() ? `?${queryParams}` : ""}`;
     const response = await fetch(url);
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: "Failed to list sessions" }));
@@ -365,7 +394,7 @@ export class ApiClient {
    */
   async getUserSessions(userId: string, limit: number = 50, offset: number = 0): Promise<ListSessionsResponse> {
     const response = await fetch(
-      `${this.baseUrl}/users/${userId}/sessions?limit=${limit}&offset=${offset}`
+      `${this.agentBaseUrl}/users/${userId}/sessions?limit=${limit}&offset=${offset}`
     );
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: "Failed to get user sessions" }));
@@ -379,7 +408,7 @@ export class ApiClient {
    * POST /api/v1/sessions/{session_id}/close
    */
   async closeSession(sessionId: string): Promise<CloseSessionResponse> {
-    const response = await fetch(`${this.baseUrl}/sessions/${sessionId}/close`, {
+    const response = await fetch(`${this.agentBaseUrl}/sessions/${sessionId}/close`, {
       method: "POST",
     });
     if (!response.ok) {
@@ -394,7 +423,7 @@ export class ApiClient {
    * DELETE /api/v1/sessions/{session_id}
    */
   async deleteSession(sessionId: string): Promise<DeleteSessionResponse> {
-    const response = await fetch(`${this.baseUrl}/sessions/${sessionId}`, {
+    const response = await fetch(`${this.agentBaseUrl}/sessions/${sessionId}`, {
       method: "DELETE",
     });
     if (!response.ok) {
@@ -412,7 +441,7 @@ export class ApiClient {
     sessionId: string,
     metadata: Record<string, unknown>
   ): Promise<{ session_id: string; status: string }> {
-    const response = await fetch(`${this.baseUrl}/sessions/${sessionId}/metadata`, {
+    const response = await fetch(`${this.agentBaseUrl}/sessions/${sessionId}/metadata`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ metadata }),
@@ -430,8 +459,8 @@ export class ApiClient {
    */
   async getSessionStatistics(userId?: string): Promise<SessionStatistics> {
     const url = userId
-      ? `${this.baseUrl}/sessions/statistics?user_id=${userId}`
-      : `${this.baseUrl}/sessions/statistics`;
+      ? `${this.agentBaseUrl}/sessions/statistics?user_id=${userId}`
+      : `${this.agentBaseUrl}/sessions/statistics`;
     const response = await fetch(url);
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: "Failed to get statistics" }));
@@ -448,7 +477,7 @@ export class ApiClient {
    * Returns user_message_id and assistant_message_id
    */
   async sendMessage(sessionId: string, request: SendMessageRequest): Promise<SendMessageResponse> {
-    const response = await fetch(`${this.baseUrl}/sessions/${sessionId}/messages`, {
+    const response = await fetch(`${this.agentBaseUrl}/sessions/${sessionId}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(request),
@@ -471,7 +500,7 @@ export class ApiClient {
     offset: number = 0
   ): Promise<Message[]> {
     const response = await fetch(
-      `${this.baseUrl}/sessions/${sessionId}/messages?limit=${limit}&offset=${offset}`
+      `${this.agentBaseUrl}/sessions/${sessionId}/messages?limit=${limit}&offset=${offset}`
     );
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: "Failed to get messages" }));
@@ -486,7 +515,7 @@ export class ApiClient {
    * GET /api/v1/messages/{message_id}
    */
   async getMessage(messageId: string): Promise<Message> {
-    const response = await fetch(`${this.baseUrl}/messages/${messageId}`);
+    const response = await fetch(`${this.agentBaseUrl}/messages/${messageId}`);
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: "Failed to get message" }));
       throw new Error(error.detail || "Failed to get message");
@@ -505,7 +534,7 @@ export class ApiClient {
     includeSystem: boolean = false
   ): Promise<GetHistoryResponse> {
     const response = await fetch(
-      `${this.baseUrl}/sessions/${sessionId}/history?limit=${limit}&include_system=${includeSystem}`
+      `${this.agentBaseUrl}/sessions/${sessionId}/history?limit=${limit}&include_system=${includeSystem}`
     );
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: "Failed to get history" }));
@@ -526,7 +555,7 @@ export class ApiClient {
     const params = new URLSearchParams({ query, limit: limit.toString() });
     if (sessionId) params.append("session_id", sessionId);
 
-    const response = await fetch(`${this.baseUrl}/messages/search?${params}`);
+    const response = await fetch(`${this.agentBaseUrl}/messages/search?${params}`);
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: "Failed to search messages" }));
       throw new Error(error.detail || "Failed to search messages");
@@ -540,8 +569,8 @@ export class ApiClient {
    */
   async getMessageStatistics(sessionId?: string): Promise<MessageStatistics> {
     const url = sessionId
-      ? `${this.baseUrl}/messages/statistics?session_id=${sessionId}`
-      : `${this.baseUrl}/messages/statistics`;
+      ? `${this.agentBaseUrl}/messages/statistics?session_id=${sessionId}`
+      : `${this.agentBaseUrl}/messages/statistics`;
     const response = await fetch(url);
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: "Failed to get statistics" }));
@@ -555,7 +584,7 @@ export class ApiClient {
    * DELETE /api/v1/sessions/{session_id}/messages
    */
   async deleteSessionMessages(sessionId: string): Promise<DeleteMessagesResponse> {
-    const response = await fetch(`${this.baseUrl}/sessions/${sessionId}/messages`, {
+    const response = await fetch(`${this.agentBaseUrl}/sessions/${sessionId}/messages`, {
       method: "DELETE",
     });
     if (!response.ok) {
@@ -591,7 +620,7 @@ export class ApiClient {
     const baseReconnectDelay = 1000; // 1 second
 
     const connect = () => {
-      const url = `${this.baseUrl}/sessions/${sessionId}/messages/${messageId}/stream?last_id=${lastEventId}`;
+      const url = `${this.agentBaseUrl}/sessions/${sessionId}/messages/${messageId}/stream?last_id=${lastEventId}`;
       console.log("Connecting to SSE stream:", url, `(attempt ${reconnectAttempts + 1})`);
 
       eventSource = new EventSource(url);
@@ -704,6 +733,87 @@ export class ApiClient {
     };
   }
 
+  // ============= File Upload =============
+
+  /**
+   * Get presigned upload URL from backend
+   * POST /api/upload
+   */
+  async getPresignedUploadUrl(request: UploadRequest): Promise<PresignedUrlData> {
+    const response = await fetch(`${this.backendBaseUrl}/upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+    
+    if (!response.ok) {
+      const error: UploadResponse = await response.json().catch(() => ({ 
+        success: false,
+        data: {} as PresignedUrlData,
+        error: "Failed to get upload URL" 
+      }));
+      
+      // Handle specific error cases
+      if (error.error) {
+        throw new Error(error.error);
+      }
+      throw new Error("Failed to get upload URL");
+    }
+    
+    const result: UploadResponse = await response.json();
+    if (!result.success || !result.data) {
+      throw new Error(result.error || "Failed to get upload URL");
+    }
+    
+    return result.data;
+  }
+
+  /**
+   * Upload file using resumable upload with progress tracking
+   */
+  async uploadFileWithProgress(
+    file: File,
+    uploadUrl: string,
+    onProgress?: (progress: number) => void
+  ): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && onProgress) {
+          const progress = Math.round((event.loaded * 100) / event.total);
+          onProgress(progress);
+        }
+      });
+
+      // Handle successful upload
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          if (onProgress) onProgress(100);
+          resolve();
+        } else {
+          reject(new Error(`Upload failed: ${xhr.statusText}`));
+        }
+      });
+
+      // Handle network errors
+      xhr.addEventListener('error', () => {
+        reject(new Error('Upload failed due to network error'));
+      });
+
+      // Handle aborted uploads
+      xhr.addEventListener('abort', () => {
+        reject(new Error('Upload was aborted'));
+      });
+
+      // Start upload
+      xhr.open('PUT', uploadUrl);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      xhr.send(file);
+    });
+  }
+
   // ============= Health Check =============
 
   /**
@@ -711,7 +821,7 @@ export class ApiClient {
    * GET /api/v1/health
    */
   async checkHealth(): Promise<HealthResponse> {
-    const response = await fetch(`${this.baseUrl}/health`);
+    const response = await fetch(`${this.backendBaseUrl}/health`);
     if (!response.ok) {
       throw new Error("Health check failed");
     }
