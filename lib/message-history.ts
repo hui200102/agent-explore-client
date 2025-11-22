@@ -18,6 +18,11 @@ export interface IMessageStorage {
   deleteMessage(messageId: string): Promise<void>
   clearSession(sessionId: string): Promise<void>
   searchMessages(sessionId: string, query: string): Promise<Message[]>
+  getStatistics(sessionId?: string): Promise<{
+    total: number;
+    completed: number;
+    by_role: Record<string, { count: number; completed: number }>;
+  }>
 }
 
 /**
@@ -46,21 +51,44 @@ export class ApiMessageStorage implements IMessageStorage {
     console.log("[ApiStorage] Message auto-updated on backend:", message.message_id)
   }
 
-  async deleteMessage(messageId: string): Promise<void> {
+  async deleteMessage(): Promise<void> {
     // Not implemented in backend yet
     console.warn("[ApiStorage] Delete not supported")
   }
 
   async clearSession(sessionId: string): Promise<void> {
-    await apiClient.deleteSession(sessionId)
+    // Delete all messages in the session (not the session itself)
+    try {
+      await apiClient.deleteSessionMessages(sessionId)
+      console.log("[ApiStorage] Cleared all messages in session:", sessionId)
+    } catch (error) {
+      console.error("[ApiStorage] Failed to clear session messages:", error)
+      throw error
+    }
   }
 
   async searchMessages(sessionId: string, query: string): Promise<Message[]> {
-    // Get all messages and filter locally for now
-    const messages = await this.getMessages(sessionId, 1000, 0)
-    return messages.filter(m => 
-      m.text.toLowerCase().includes(query.toLowerCase())
-    )
+    // Use server-side search via API
+    try {
+      const result = await apiClient.searchMessages(query, sessionId)
+      return result.messages
+    } catch (error) {
+      console.error("[ApiStorage] Search failed, falling back to local search:", error)
+      // Fallback: Get all messages and filter locally
+      const messages = await this.getMessages(sessionId, 1000, 0)
+      return messages.filter(m => 
+        m.text.toLowerCase().includes(query.toLowerCase())
+      )
+    }
+  }
+
+  async getStatistics(sessionId?: string): Promise<{
+    total: number;
+    completed: number;
+    by_role: Record<string, { count: number; completed: number }>;
+  }> {
+    const stats = await apiClient.getMessageStatistics(sessionId)
+    return stats
   }
 }
 
@@ -107,6 +135,20 @@ export class IndexedDBMessageStorage implements IMessageStorage {
     // TODO: Implement IndexedDB search
     console.log("[IndexedDB] Searching messages:", sessionId, query)
     return []
+  }
+
+  async getStatistics(sessionId?: string): Promise<{
+    total: number;
+    completed: number;
+    by_role: Record<string, { count: number; completed: number }>;
+  }> {
+    // TODO: Implement IndexedDB statistics
+    console.log("[IndexedDB] Getting statistics:", sessionId)
+    return {
+      total: 0,
+      completed: 0,
+      by_role: {},
+    }
   }
 }
 
@@ -233,6 +275,18 @@ export class MessageHistory {
   async searchMessages(sessionId: string, query: string): Promise<Message[]> {
     console.log("[MessageHistory] Searching messages:", query)
     return await this.storage.searchMessages(sessionId, query)
+  }
+
+  /**
+   * Get message statistics
+   */
+  async getStatistics(sessionId?: string): Promise<{
+    total: number;
+    completed: number;
+    by_role: Record<string, { count: number; completed: number }>;
+  }> {
+    console.log("[MessageHistory] Getting statistics:", sessionId)
+    return await this.storage.getStatistics(sessionId)
   }
 
   /**

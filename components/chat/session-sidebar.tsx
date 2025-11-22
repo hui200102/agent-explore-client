@@ -244,41 +244,43 @@ export function SessionSidebar({
                       </Button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => onSelectSession(session.session_id)}
-                      className="w-full p-3 text-left"
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3
-                          className={cn(
-                            "text-sm font-medium truncate flex-1",
-                            isActive ? "text-primary" : "text-foreground"
+                    <>
+                      <button
+                        onClick={() => onSelectSession(session.session_id)}
+                        className="w-full p-3 text-left"
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <h3
+                            className={cn(
+                              "text-sm font-medium truncate flex-1",
+                              isActive ? "text-primary" : "text-foreground"
+                            )}
+                          >
+                            {session.metadata?.title || "Untitled Conversation"}
+                          </h3>
+                          {isActive && (
+                            <span className="shrink-0 w-2 h-2 rounded-full bg-primary animate-pulse" />
                           )}
-                        >
-                          {session.metadata?.title || "Untitled Conversation"}
-                        </h3>
-                        {isActive && (
-                          <span className="shrink-0 w-2 h-2 rounded-full bg-primary animate-pulse" />
-                        )}
-                      </div>
-
-                      {session.metadata?.lastMessage && (
-                        <p className="text-xs text-muted-foreground truncate mb-2">
-                          {session.metadata.lastMessage}
-                        </p>
-                      )}
-
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          <span>{formatDate(session.updated_at || session.created_at)}</span>
                         </div>
-                        {session.metadata?.messageCount !== undefined && (
-                          <span>{session.metadata.messageCount} messages</span>
-                        )}
-                      </div>
 
-                      {/* Hover Actions */}
+                        {session.metadata?.lastMessage && (
+                          <p className="text-xs text-muted-foreground truncate mb-2">
+                            {session.metadata.lastMessage}
+                          </p>
+                        )}
+
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            <span>{formatDate(session.updated_at || session.created_at)}</span>
+                          </div>
+                          {session.metadata?.messageCount !== undefined && (
+                            <span>{session.metadata.messageCount} messages</span>
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Hover Actions - Outside button to avoid nesting */}
                       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                         {onUpdateSession && (
                           <Button
@@ -307,7 +309,7 @@ export function SessionSidebar({
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
-                    </button>
+                    </>
                   )}
                 </div>
               )

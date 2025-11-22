@@ -102,13 +102,7 @@ export default function Home() {
   }
 
   const handleSessionReady = (sessionId: string) => {
-    // Ensure this session is in localStorage
-    const existingSession = sessionList.getSession(sessionId)
-    if (existingSession) {
-      SessionStorage.saveSession(existingSession)
-    }
-    
-    // Reload session list to stay in sync
+    // Reload session list to stay in sync with server
     sessionList.loadSessions()
   }
 

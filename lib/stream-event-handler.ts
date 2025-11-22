@@ -78,31 +78,71 @@ export class StreamEventHandler {
 
   /**
    * Handle text delta events (streaming text)
+   * Appends to the last text content block
    */
   private handleTextDelta(event: StreamEvent): void {
     this.updateMessage(event.message_id, (message) => {
-      message.text += (event.payload.delta as string) || ""
-      console.log(`[TextDelta] Updated text:`, message.text.slice(-20))
+      const delta = (event.payload.delta as string) || ""
+      
+      // Find the index of the last text content block
+      let lastTextBlockIndex = -1
+      for (let i = message.content_blocks.length - 1; i >= 0; i--) {
+        if (message.content_blocks[i].content_type === "text") {
+          lastTextBlockIndex = i
+          break
+        }
+      }
+      
+      if (lastTextBlockIndex !== -1) {
+        // Append to existing text block - create new array and new block object
+        const updatedBlocks = [...message.content_blocks]
+        updatedBlocks[lastTextBlockIndex] = {
+          ...updatedBlocks[lastTextBlockIndex],
+          text: (updatedBlocks[lastTextBlockIndex].text || "") + delta
+        }
+        message.content_blocks = updatedBlocks
+        console.log(`[TextDelta] Appended to text block ${updatedBlocks[lastTextBlockIndex].content_id}:`, delta)
+      } else {
+        // Create a new text block if none exists
+        const newTextBlock: ContentBlock = {
+          content_id: `text_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          content_type: "text",
+          text: delta,
+          sequence: message.content_blocks.length + 1,
+          is_placeholder: false,
+        }
+        message.content_blocks = [...message.content_blocks, newTextBlock]
+        console.log(`[TextDelta] Created new text block:`, newTextBlock.content_id)
+      }
+      
+      // Also update message.text for compatibility
+      message.text += delta
+      
       return message
     })
   }
 
   /**
-   * Handle content added events (images, videos, etc.)
+   * Handle content added events (text, images, videos, etc.)
    */
   private handleContentAdded(event: StreamEvent): void {
     console.log("[ContentAdded] Adding content:", event.payload)
 
     this.updateMessage(event.message_id, (message) => {
-      const hasData = event.payload.image || event.payload.video || event.payload.audio || event.payload.file
+      const contentType = event.payload.content_type as "text" | "image" | "video" | "audio" | "file"
+      const hasData = event.payload.text || event.payload.image || event.payload.video || event.payload.audio || event.payload.file
 
       const newBlock: ContentBlock = {
         content_id: event.payload.content_id as string,
-        content_type: event.payload.content_type as "image" | "video" | "audio" | "file",
+        content_type: contentType,
+        sequence: event.payload.sequence as number | undefined,
         is_placeholder: !hasData,
       }
 
       // Add type-specific data if available
+      if (event.payload.text !== undefined) {
+        newBlock.text = event.payload.text as string
+      }
       if (event.payload.image) {
         newBlock.image = event.payload.image as ImageContent
       }
@@ -116,8 +156,19 @@ export class StreamEventHandler {
         newBlock.file = event.payload.file as FileContent
       }
 
+      // Add the new block
       message.content_blocks = [...message.content_blocks, newBlock]
-      console.log("[ContentAdded] Content block added:", newBlock)
+      
+      // Sort content blocks by sequence to maintain correct order
+      message.content_blocks = this.sortContentBlocks(message.content_blocks)
+      
+      console.log("[ContentAdded] Content block added and sorted:", newBlock, "Total blocks:", message.content_blocks.length)
+      
+      // Update message.text if it's a text block
+      if (contentType === "text" && event.payload.text) {
+        message.text += event.payload.text as string
+      }
+      
       return message
     })
   }
@@ -155,7 +206,16 @@ export class StreamEventHandler {
           is_placeholder: false,
         }
 
+        // Update sequence if provided
+        if (event.payload.sequence !== undefined) {
+          updatedBlock.sequence = event.payload.sequence as number
+        }
+
         // Add content type-specific data if provided
+        if (event.payload.text !== undefined) {
+          updatedBlock.text = event.payload.text as string
+          console.log("[ContentUpdated] Updated text data:", event.payload.text)
+        }
         if (event.payload.image) {
           updatedBlock.image = event.payload.image as typeof updatedBlock.image
           console.log("[ContentUpdated] Updated image data:", event.payload.image)
@@ -174,12 +234,16 @@ export class StreamEventHandler {
         }
 
         // Warn if no data provided
-        if (!event.payload.image && !event.payload.video && !event.payload.audio && !event.payload.file) {
+        if (!event.payload.text && !event.payload.image && !event.payload.video && !event.payload.audio && !event.payload.file) {
           console.warn("[ContentUpdated] No actual content data provided, content_id:", contentId)
         }
 
         message.content_blocks[blockIndex] = updatedBlock
-        console.log("[ContentUpdated] Content block updated:", updatedBlock)
+        
+        // Sort content blocks by sequence after update
+        message.content_blocks = this.sortContentBlocks(message.content_blocks)
+        
+        console.log("[ContentUpdated] Content block updated and sorted:", updatedBlock)
       } else {
         console.warn("[ContentUpdated] No matching content block found for:", contentId, contentType)
       }
@@ -326,6 +390,29 @@ export class StreamEventHandler {
    */
   updateMessages(messages: Message[]): void {
     this.messages = messages
+  }
+
+  /**
+   * Sort content blocks by sequence number
+   * Blocks without sequence are placed at the end
+   */
+  private sortContentBlocks(blocks: ContentBlock[]): ContentBlock[] {
+    return [...blocks].sort((a, b) => {
+      // If both have sequence, sort by sequence
+      if (a.sequence !== undefined && b.sequence !== undefined) {
+        return a.sequence - b.sequence
+      }
+      // If only a has sequence, a comes first
+      if (a.sequence !== undefined) {
+        return -1
+      }
+      // If only b has sequence, b comes first
+      if (b.sequence !== undefined) {
+        return 1
+      }
+      // If neither has sequence, maintain relative order (stable sort)
+      return 0
+    })
   }
 }
 

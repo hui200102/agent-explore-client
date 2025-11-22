@@ -14,6 +14,13 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const isAssistant = message.role === "assistant"
   const hasPendingTasks = Object.keys(message.pending_tasks).length > 0
 
+  // Sort content blocks by sequence
+  const sortedBlocks = [...message.content_blocks]
+    .filter(block => !block.is_placeholder)
+    .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
+
+  console.log("sortedBlocks", sortedBlocks)
+
   return (
     <div
       className={cn(
@@ -38,21 +45,26 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               : "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground border-primary/20"
           )}
         >
-          {message.text && (
-            <div className={cn(
-              "text-sm whitespace-pre-wrap break-words overflow-wrap-anywhere leading-relaxed",
-              isAssistant ? "text-foreground" : "text-primary-foreground"
-            )}>
-              {message.text}
-            </div>
-          )}
-
-          {message.content_blocks && message.content_blocks.length > 0 && (
-            <div className="mt-3 space-y-3">
-              {message.content_blocks.map((block) => (
-                <ContentBlockRenderer key={block.content_id} block={block} />
+          {sortedBlocks.length > 0 ? (
+            <div className="space-y-3">
+              {sortedBlocks.map((block, index) => (
+                <ContentBlockRenderer 
+                  key={block.content_id} 
+                  block={block}
+                  isAssistant={isAssistant}
+                  isFirst={index === 0}
+                />
               ))}
             </div>
+          ) : (
+            message.text && (
+              <div className={cn(
+                "text-sm whitespace-pre-wrap break-words overflow-wrap-anywhere leading-relaxed",
+                isAssistant ? "text-foreground" : "text-primary-foreground"
+              )}>
+                {message.text}
+              </div>
+            )
           )}
 
           {!message.is_complete && hasPendingTasks && (
@@ -94,7 +106,15 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   )
 }
 
-function ContentBlockRenderer({ block }: { block: ContentBlock }) {
+function ContentBlockRenderer({ 
+  block, 
+  isAssistant, 
+  isFirst 
+}: { 
+  block: ContentBlock
+  isAssistant: boolean
+  isFirst: boolean
+}) {
   // Handle placeholder
   if (block.is_placeholder) {
     return (
@@ -109,6 +129,8 @@ function ContentBlockRenderer({ block }: { block: ContentBlock }) {
 
   // Render based on content type
   switch (block.content_type) {
+    case "text":
+      return <TextBlock block={block} isAssistant={isAssistant} isFirst={isFirst} />
     case "image":
       return <ImageBlock block={block} />
     case "video":
@@ -124,6 +146,28 @@ function ContentBlockRenderer({ block }: { block: ContentBlock }) {
         </div>
       )
   }
+}
+
+function TextBlock({ 
+  block, 
+  isAssistant,
+  isFirst 
+}: { 
+  block: ContentBlock
+  isAssistant: boolean
+  isFirst: boolean
+}) {
+  if (!block.text) return null
+
+  return (
+    <div className={cn(
+      "text-sm whitespace-pre-wrap break-words overflow-wrap-anywhere leading-relaxed",
+      isAssistant ? "text-foreground" : "text-primary-foreground",
+      !isFirst && "mt-3"
+    )}>
+      {block.text}
+    </div>
+  )
 }
 
 function ImageBlock({ block }: { block: ContentBlock }) {

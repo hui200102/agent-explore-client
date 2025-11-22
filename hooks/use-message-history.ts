@@ -18,6 +18,11 @@ interface UseMessageHistoryReturn {
   deleteMessage: (sessionId: string, messageId: string) => Promise<void>
   clearSession: (sessionId: string) => Promise<void>
   searchMessages: (sessionId: string, query: string) => Promise<Message[]>
+  getStatistics: (sessionId?: string) => Promise<{
+    total: number;
+    completed: number;
+    by_role: Record<string, { count: number; completed: number }>;
+  }>
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
 }
 
@@ -149,6 +154,23 @@ export function useMessageHistory(options?: UseMessageHistoryOptions): UseMessag
     }
   }, [history])
 
+  /**
+   * Get message statistics
+   */
+  const getStatistics = useCallback(async (sessionId?: string) => {
+    try {
+      console.log("[useMessageHistory] Getting statistics:", sessionId)
+      return await history.getStatistics(sessionId)
+    } catch (err) {
+      console.error("[useMessageHistory] Statistics error:", err)
+      return {
+        total: 0,
+        completed: 0,
+        by_role: {},
+      }
+    }
+  }, [history])
+
   return {
     messages,
     isLoading,
@@ -159,6 +181,7 @@ export function useMessageHistory(options?: UseMessageHistoryOptions): UseMessag
     deleteMessage,
     clearSession,
     searchMessages,
+    getStatistics,
     setMessages,
   }
 }

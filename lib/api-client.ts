@@ -18,10 +18,37 @@ export interface SessionResponse {
 
 export interface Session {
   session_id: string;
-  user_id: string;
-  metadata: Record<string, unknown>;
+  user_id?: string | null;
+  status: "active" | "inactive" | "completed";
+  current_message_id?: string | null;
+  metadata?: Record<string, unknown>;
   created_at: string;
-  updated_at: string;
+  updated_at?: string | null;
+}
+
+export interface ListSessionsResponse {
+  sessions: Session[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface UpdateSessionMetadataRequest {
+  metadata: Record<string, unknown>;
+}
+
+export interface SessionStatistics {
+  total: number;
+  by_status: {
+    active?: number;
+    completed?: number;
+    inactive?: number;
+  };
+  user_id?: string | null;
+}
+
+export interface CloseSessionResponse {
+  session_id: string;
   status: string;
 }
 
@@ -32,16 +59,87 @@ export interface DeleteSessionResponse {
 
 // ============= Message Interfaces =============
 
+// Content Block Types for sending messages
+export type ContentBlockInput = 
+  | TextBlockInput 
+  | ImageBlockInput 
+  | VideoBlockInput 
+  | AudioBlockInput 
+  | FileBlockInput;
+
+export interface TextBlockInput {
+  content_type: "text";
+  text: string;
+}
+
+export interface ImageBlockInput {
+  content_type: "image";
+  image: {
+    url?: string;
+    data?: string; // Base64
+    format?: string;
+    alt?: string;
+    caption?: string;
+    summary?: string;
+    width?: number;
+    height?: number;
+  };
+}
+
+export interface VideoBlockInput {
+  content_type: "video";
+  video: {
+    url?: string;
+    data?: string; // Base64
+    format?: string;
+    title?: string;
+    summary?: string;
+    duration?: number;
+    width?: number;
+    height?: number;
+    thumbnail_url?: string;
+  };
+}
+
+export interface AudioBlockInput {
+  content_type: "audio";
+  audio: {
+    url?: string;
+    data?: string; // Base64
+    format?: string;
+    title?: string;
+    summary?: string;
+    duration?: number;
+    sample_rate?: number;
+    channels?: number;
+  };
+}
+
+export interface FileBlockInput {
+  content_type: "file";
+  file: {
+    name: string; // Required
+    url?: string;
+    data?: string; // Base64
+    size?: number;
+    mime_type?: string;
+    extension?: string;
+    description?: string;
+    summary?: string;
+  };
+}
+
 export interface SendMessageRequest {
-  content: string;
-  type?: string;
+  content_blocks: ContentBlockInput[];
+  role?: "user" | "assistant" | "system";
+  parent_message_id?: string;
   metadata?: Record<string, unknown>;
 }
 
 export interface SendMessageResponse {
-  user_message_id: string;
-  assistant_message_id: string;
+  message_id: string;
   session_id: string;
+  assistant_message_id?: string;
 }
 
 export interface Message {
@@ -64,12 +162,53 @@ export interface GetMessagesResponse {
   count: number;
 }
 
+export interface GetHistoryResponse {
+  session_id: string;
+  messages: Message[];
+  count: number;
+}
+
+export interface SearchMessagesResponse {
+  query: string;
+  session_id?: string | null;
+  messages: Message[];
+  count: number;
+}
+
+export interface MessageStatistics {
+  total: number;
+  completed: number;
+  by_role: {
+    user?: {
+      count: number;
+      completed: number;
+    };
+    assistant?: {
+      count: number;
+      completed: number;
+    };
+    system?: {
+      count: number;
+      completed: number;
+    };
+  };
+  session_id?: string | null;
+}
+
+export interface DeleteMessagesResponse {
+  session_id: string;
+  deleted_count: number;
+  status: string;
+}
+
 // ============= Content Block Interfaces =============
 
 export interface ContentBlock {
   content_id: string;
-  content_type: "image" | "video" | "audio" | "file";
+  content_type: "text" | "image" | "video" | "audio" | "file";
+  sequence?: number;
   is_placeholder?: boolean;
+  text?: string;
   image?: ImageContent;
   video?: VideoContent;
   audio?: AudioContent;
@@ -177,7 +316,62 @@ export class ApiClient {
   }
 
   /**
+   * List sessions with filters
+   * GET /api/v1/sessions
+   */
+  async listSessions(params?: {
+    user_id?: string;
+    status?: "active" | "inactive" | "completed";
+    limit?: number;
+    offset?: number;
+  }): Promise<ListSessionsResponse> {
+    const queryParams = new URLSearchParams();
+    if (params?.user_id) queryParams.append("user_id", params.user_id);
+    if (params?.status) queryParams.append("status", params.status);
+    if (params?.limit !== undefined) queryParams.append("limit", params.limit.toString());
+    if (params?.offset !== undefined) queryParams.append("offset", params.offset.toString());
+
+    const url = `${this.baseUrl}/sessions${queryParams.toString() ? `?${queryParams}` : ""}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to list sessions" }));
+      throw new Error(error.detail || "Failed to list sessions");
+    }
+    return response.json();
+  }
+
+  /**
+   * Get user's sessions
+   * GET /api/v1/users/{user_id}/sessions
+   */
+  async getUserSessions(userId: string, limit: number = 50, offset: number = 0): Promise<ListSessionsResponse> {
+    const response = await fetch(
+      `${this.baseUrl}/users/${userId}/sessions?limit=${limit}&offset=${offset}`
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to get user sessions" }));
+      throw new Error(error.detail || "Failed to get user sessions");
+    }
+    return response.json();
+  }
+
+  /**
    * Close a session
+   * POST /api/v1/sessions/{session_id}/close
+   */
+  async closeSession(sessionId: string): Promise<CloseSessionResponse> {
+    const response = await fetch(`${this.baseUrl}/sessions/${sessionId}/close`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to close session" }));
+      throw new Error(error.detail || "Failed to close session");
+    }
+    return response.json();
+  }
+
+  /**
+   * Delete a session
    * DELETE /api/v1/sessions/{session_id}
    */
   async deleteSession(sessionId: string): Promise<DeleteSessionResponse> {
@@ -187,6 +381,42 @@ export class ApiClient {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: "Failed to delete session" }));
       throw new Error(error.detail || "Failed to delete session");
+    }
+    return response.json();
+  }
+
+  /**
+   * Update session metadata
+   * PATCH /api/v1/sessions/{session_id}/metadata
+   */
+  async updateSessionMetadata(
+    sessionId: string,
+    metadata: Record<string, unknown>
+  ): Promise<{ session_id: string; status: string }> {
+    const response = await fetch(`${this.baseUrl}/sessions/${sessionId}/metadata`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ metadata }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to update metadata" }));
+      throw new Error(error.detail || "Failed to update metadata");
+    }
+    return response.json();
+  }
+
+  /**
+   * Get session statistics
+   * GET /api/v1/sessions/statistics
+   */
+  async getSessionStatistics(userId?: string): Promise<SessionStatistics> {
+    const url = userId
+      ? `${this.baseUrl}/sessions/statistics?user_id=${userId}`
+      : `${this.baseUrl}/sessions/statistics`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to get statistics" }));
+      throw new Error(error.detail || "Failed to get statistics");
     }
     return response.json();
   }
@@ -254,6 +484,76 @@ export class ApiClient {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: "Failed to get content" }));
       throw new Error(error.detail || "Failed to get content");
+    }
+    return response.json();
+  }
+
+  /**
+   * Get conversation history
+   * GET /api/v1/sessions/{session_id}/history
+   */
+  async getConversationHistory(
+    sessionId: string,
+    limit: number = 50,
+    includeSystem: boolean = false
+  ): Promise<GetHistoryResponse> {
+    const response = await fetch(
+      `${this.baseUrl}/sessions/${sessionId}/history?limit=${limit}&include_system=${includeSystem}`
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to get history" }));
+      throw new Error(error.detail || "Failed to get history");
+    }
+    return response.json();
+  }
+
+  /**
+   * Search messages
+   * GET /api/v1/messages/search
+   */
+  async searchMessages(
+    query: string,
+    sessionId?: string,
+    limit: number = 20
+  ): Promise<SearchMessagesResponse> {
+    const params = new URLSearchParams({ query, limit: limit.toString() });
+    if (sessionId) params.append("session_id", sessionId);
+
+    const response = await fetch(`${this.baseUrl}/messages/search?${params}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to search messages" }));
+      throw new Error(error.detail || "Failed to search messages");
+    }
+    return response.json();
+  }
+
+  /**
+   * Get message statistics
+   * GET /api/v1/messages/statistics
+   */
+  async getMessageStatistics(sessionId?: string): Promise<MessageStatistics> {
+    const url = sessionId
+      ? `${this.baseUrl}/messages/statistics?session_id=${sessionId}`
+      : `${this.baseUrl}/messages/statistics`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to get statistics" }));
+      throw new Error(error.detail || "Failed to get statistics");
+    }
+    return response.json();
+  }
+
+  /**
+   * Delete all messages in a session
+   * DELETE /api/v1/sessions/{session_id}/messages
+   */
+  async deleteSessionMessages(sessionId: string): Promise<DeleteMessagesResponse> {
+    const response = await fetch(`${this.baseUrl}/sessions/${sessionId}/messages`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to delete messages" }));
+      throw new Error(error.detail || "Failed to delete messages");
     }
     return response.json();
   }
@@ -339,10 +639,8 @@ export class ApiClient {
         eventSource?.addEventListener(eventType, handleEvent);
       });
 
-      // Fallback for generic messages
-      if (eventSource) {
-        eventSource.onmessage = handleEvent;
-      }
+      // Note: We don't use onmessage because it would cause duplicate event processing
+      // All events are handled by the specific addEventListener calls above
 
       // Handle errors and reconnection
       if (eventSource) {

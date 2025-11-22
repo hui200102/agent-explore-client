@@ -12,6 +12,7 @@ import { useSSEStream } from "@/hooks/use-sse-stream"
 import { useMessageHistory } from "@/hooks/use-message-history"
 import { StreamEventHandler } from "@/lib/stream-event-handler"
 import { apiClient, type Message } from "@/lib/api-client"
+import { createContentBlocks } from "@/lib/content-block-utils"
 import { Loader2, AlertCircle, RefreshCw, Bot } from "lucide-react"
 
 interface ChatContainerProps {
@@ -137,12 +138,21 @@ export function ChatContainer({
     }
 
     try {
+      // Build content blocks using utility function
+      const contentBlocks = await createContentBlocks(content, files)
+      
+      // Must have at least one content block
+      if (contentBlocks.length === 0) {
+        return
+      }
+
       // Add user message optimistically
+      const displayText = content || (files && files.length > 0 ? `[${files.length} file(s)]` : "")
       const tempUserMessage: Message = {
         message_id: `temp_user_${Date.now()}`,
         session_id: sessionId,
         role: "user",
-        text: content,
+        text: displayText,
         content_blocks: [],
         pending_tasks: {},
         is_complete: true,
@@ -153,23 +163,11 @@ export function ChatContainer({
       }
       setMessages((prev) => [...prev, tempUserMessage])
 
-      // TODO: Handle file uploads here when backend is ready
-      // For now, we'll just send the text message
-      if (files && files.length > 0) {
-        console.log("Files to upload:", files)
-        // You can implement your file upload logic here
-        // Example:
-        // const uploadedFiles = await uploadFiles(files)
-        // Then attach the uploaded file URLs to the message
-      }
-
-      // Send message to backend
-      console.log("Sending message:", content, "with files:", files?.length || 0)
+      // Send message to backend with new format
+      console.log("Sending message with content_blocks:", contentBlocks)
       const response = await apiClient.sendMessage(sessionId, {
-        content: content || "(attached files)", // Fallback if only files are sent
-        type: "text",
-        // TODO: Add file metadata here when backend supports it
-        // files: uploadedFileUrls,
+        content_blocks: contentBlocks,
+        role: "user",
       })
 
       console.log("Send message response:", response)
@@ -181,10 +179,10 @@ export function ChatContainer({
         
         // Create real user message
         const realUserMessage: Message = {
-          message_id: response.user_message_id,
+          message_id: response.message_id,
           session_id: sessionId,
           role: "user",
-          text: content,
+          text: displayText,
           content_blocks: [],
           pending_tasks: {},
           is_complete: true,
@@ -194,8 +192,8 @@ export function ChatContainer({
           updated_at: new Date().toISOString(),
         }
 
-        // Create assistant message placeholder
-        const assistantMessage: Message = {
+        // Create assistant message placeholder (if assistant_message_id exists)
+        const assistantMessage: Message | null = response.assistant_message_id ? {
           message_id: response.assistant_message_id,
           session_id: sessionId,
           role: "assistant",
@@ -203,27 +201,31 @@ export function ChatContainer({
           content_blocks: [],
           pending_tasks: {},
           is_complete: false,
-          parent_message_id: response.user_message_id,
+          parent_message_id: response.message_id,
           metadata: {},
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        }
+        } : null
 
-        return [...withoutTemp, realUserMessage, assistantMessage]
+        return assistantMessage 
+          ? [...withoutTemp, realUserMessage, assistantMessage]
+          : [...withoutTemp, realUserMessage]
       })
 
-      // Subscribe to assistant message stream
-      subscribeToMessage(response.assistant_message_id)
-      
-      // Show typing indicator
-      setIsAssistantTyping(true)
-      // Hide typing indicator after a delay (will be replaced by actual message)
-      setTimeout(() => setIsAssistantTyping(false), 3000)
+      // Subscribe to assistant message stream (if exists)
+      if (response.assistant_message_id) {
+        subscribeToMessage(response.assistant_message_id)
+        
+        // Show typing indicator
+        setIsAssistantTyping(true)
+        // Hide typing indicator after a delay (will be replaced by actual message)
+        setTimeout(() => setIsAssistantTyping(false), 3000)
+      }
 
       // Notify parent about message sent (for updating session metadata)
       if (onMessageSent) {
-        const messageCount = messages.length + 2 // +2 for user and assistant messages
-        onMessageSent(sessionId, content || "(attached files)", messageCount)
+        const messageCount = messages.length + (response.assistant_message_id ? 2 : 1)
+        onMessageSent(sessionId, displayText, messageCount)
       }
 
     } catch (err) {
