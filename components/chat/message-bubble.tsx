@@ -6,6 +6,14 @@ import { Card } from "@/components/ui/card"
 import type { Message, ContentBlock } from "@/lib/api-client"
 import { User, Image as ImageIcon, Video, Music, FileText, Loader2, Sparkles, AlertCircle } from "lucide-react"
 
+// Agent Components
+import { AgentStatusBar } from "@/components/chat/agent/agent-status-bar"
+import { PlanCard } from "@/components/chat/agent/plan-card"
+import { AgentProgressBar } from "@/components/chat/agent/progress-bar"
+import { ToolPlaceholder } from "@/components/chat/agent/tool-placeholder"
+import { EvaluationResult } from "@/components/chat/agent/evaluation-result"
+import { InsightBox } from "@/components/chat/agent/insight-box"
+
 interface MessageBubbleProps {
   message: Message
 }
@@ -14,7 +22,16 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const isAssistant = message.role === "assistant"
   const hasPendingTasks = Object.keys(message.pending_tasks).length > 0
   
-  // Extract error information - handle both string and object formats
+  // Debug: Log message structure
+  console.log("[MessageBubble] Rendering message:", {
+    message_id: message.message_id,
+    role: message.role,
+    content_blocks_count: message.content_blocks.length,
+    pending_tasks_count: Object.keys(message.pending_tasks).length,
+    is_complete: message.is_complete
+  });
+  
+  // Extract error information
   const errorData = message.metadata?.error
   const hasError = Boolean(errorData)
   const errorMessage = typeof errorData === 'string' 
@@ -23,10 +40,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     ? (errorData as { message?: string }).message || 'Unknown error'
     : undefined
 
-  // Sort content blocks by sequence (keep placeholders to show loading state)
+  // Sort content blocks by sequence
   const sortedBlocks = [...message.content_blocks]
     .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
-
 
   return (
     <div
@@ -43,7 +59,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         </Avatar>
       )}
 
-      <div className={cn("flex flex-col gap-2 max-w-[75%] min-w-[200px]", isAssistant ? "items-start" : "items-end")}>
+      <div className={cn("flex flex-col gap-2 max-w-[90%] min-w-[200px]", isAssistant ? "items-start" : "items-end")}>
         <Card
           className={cn(
             "px-4 py-3 min-w-0 shadow-sm border transition-all duration-200 hover:shadow-md",
@@ -66,7 +82,6 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               ))}
             </div>
           ) : !message.is_complete ? (
-            // Show loading animation for incomplete messages with no content yet
             <div className="flex items-center gap-2 py-1">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
               <span className={cn(
@@ -77,7 +92,6 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               </span>
             </div>
           ) : (
-            // Only show "No content" for completed messages with no content
             <div className={cn(
               "text-sm text-muted-foreground italic",
               isAssistant ? "text-muted-foreground" : "text-primary-foreground/70"
@@ -86,7 +100,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             </div>
           )}
 
-          {/* Error display for this message */}
+          {/* Error display */}
           {hasError && errorMessage && (
             <div className="mt-3 pt-3 border-t border-destructive/20">
               <div className="flex items-start gap-2">
@@ -103,24 +117,12 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             </div>
           )}
 
+          {/* Pending tasks (Tool placeholders) */}
           {!message.is_complete && hasPendingTasks && (
             <div className="mt-3 space-y-2 pt-2 border-t border-border/50">
-              {Object.entries(message.pending_tasks).map(([taskId, task]) => {
-                const taskData = task as { task_type?: string; progress?: number; status?: string }
-                return (
-                  <div key={taskId} className={cn(
-                    "flex items-center gap-2 text-xs",
-                    isAssistant ? "text-muted-foreground" : "text-primary-foreground/80"
-                  )}>
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    <span>
-                      {taskData.task_type || "Processing"}...{" "}
-                      {taskData.progress !== undefined && 
-                        `${Math.round(taskData.progress * 100)}%`
-                      }
-                    </span>
-                  </div>
-                )
+              {Object.values(message.pending_tasks).map((task) => {
+                console.log("[MessageBubble] Rendering ToolPlaceholder for task:", task);
+                return <ToolPlaceholder key={task.task_id} task={task} />
               })}
             </div>
           )}
@@ -151,11 +153,9 @@ function ContentBlockRenderer({
   isAssistant: boolean
   isFirst: boolean
 }) {
-  // Handle placeholder - show loading state with custom message if available
+  // Handle placeholder
   if (block.is_placeholder) {
-    // Get placeholder message from text field (set by stream handler) or use default
     const placeholderMessage = block.text || `Generating ${block.content_type}...`
-    
     return (
       <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50 animate-pulse">
         <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
@@ -166,7 +166,70 @@ function ContentBlockRenderer({
     )
   }
 
-  // Render based on content type
+  // 1. Check metadata for Agent-specific rendering
+  const meta = block.metadata;
+  
+  // Debug: Log block info to help diagnose issues
+  if (meta) {
+    console.log("[ContentBlockRenderer] Block with metadata:", {
+      content_id: block.content_id,
+      content_type: block.content_type,
+      metadata: meta,
+      text: block.text?.substring(0, 50)
+    });
+  }
+  
+  if (meta && "phase" in meta) {
+    const phase = meta.phase;
+    console.log("[ContentBlockRenderer] Detected Agent phase:", phase, "type:", meta.type);
+
+    // Planning Phase
+    if (phase === "planning" && "type" in meta) {
+      if (meta.type === "status") {
+        return <AgentStatusBar phase="planning" text={block.text || "Planning..."} />
+      }
+      if (meta.type === "plan" && "steps" in meta && Array.isArray(meta.steps)) {
+        return <PlanCard steps={meta.steps} />
+      }
+    }
+
+    // Execution Phase
+    if (phase === "execution" && "type" in meta) {
+      if (meta.type === "status") {
+        const isComplete = block.text?.includes("Complete") || false;
+        return <AgentStatusBar phase={isComplete ? "success" : "execution"} text={block.text || "Executing..."} />
+      }
+      if (meta.type === "step_progress") {
+        const step = "step" in meta && typeof meta.step === "number" ? meta.step : 0;
+        const total = "total" in meta && typeof meta.total === "number" ? meta.total : 1;
+        return <AgentProgressBar current={step} total={total} text={block.text || "Processing..."} />
+      }
+    }
+
+    // Evaluation Phase
+    if (phase === "evaluation" && "type" in meta) {
+      if (meta.type === "status") {
+        return <AgentStatusBar phase="evaluation" text={block.text || "Evaluating..."} />
+      }
+      if (meta.type === "result") {
+        const status = "status" in meta && (meta.status === "pass" || meta.status === "fail") ? meta.status : "fail";
+        return <EvaluationResult status={status} text={block.text || ""} />
+      }
+    }
+
+    // Reflection Phase
+    if (phase === "reflection" && "type" in meta) {
+      if (meta.type === "status") {
+        return <AgentStatusBar phase="reflection" text={block.text || "Reflecting..."} />
+      }
+      if (meta.type === "insight") {
+        const fullText = "full_text" in meta && typeof meta.full_text === "string" ? meta.full_text : undefined;
+        return <InsightBox summary={block.text || ""} fullText={fullText} />
+      }
+    }
+  }
+
+  // 2. Fallback to standard content type rendering
   switch (block.content_type) {
     case "text":
       return <TextBlock block={block} isAssistant={isAssistant} isFirst={isFirst} />
@@ -189,7 +252,7 @@ function ContentBlockRenderer({
 
 function TextBlock({ 
   block, 
-  isAssistant,
+  isAssistant, 
   isFirst 
 }: { 
   block: ContentBlock
@@ -213,8 +276,6 @@ function ImageBlock({ block }: { block: ContentBlock }) {
   if (!block.image) return null
 
   const { url, data, caption, alt } = block.image
-
-  // Use URL or base64 data
   const imageSrc = url || (data ? `data:image/jpeg;base64,${data}` : null)
 
   if (!imageSrc) {
@@ -251,8 +312,6 @@ function VideoBlock({ block }: { block: ContentBlock }) {
   if (!block.video) return null
 
   const { url, data, title } = block.video
-
-  // Use URL or base64 data
   const videoSrc = url || (data ? `data:video/mp4;base64,${data}` : null)
 
   if (!videoSrc) {
@@ -270,17 +329,11 @@ function VideoBlock({ block }: { block: ContentBlock }) {
         src={videoSrc}
         controls
         className="rounded-lg max-w-full h-auto border border-border/50 shadow-sm"
-        style={{
-          maxHeight: "400px",
-        }}
+        style={{ maxHeight: "400px" }}
       >
         <track kind="captions" />
       </video>
-      {title && (
-        <p className="text-xs text-muted-foreground mt-2 px-1">
-          {title}
-        </p>
-      )}
+      {title && <p className="text-xs text-muted-foreground mt-2 px-1">{title}</p>}
     </div>
   )
 }
@@ -289,8 +342,6 @@ function AudioBlock({ block }: { block: ContentBlock }) {
   if (!block.audio) return null
 
   const { url, data, title } = block.audio
-
-  // Use URL or base64 data
   const audioSrc = url || (data ? `data:audio/mp3;base64,${data}` : null)
 
   if (!audioSrc) {

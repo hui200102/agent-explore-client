@@ -141,7 +141,20 @@ export class StreamEventHandler {
    * Handle content added events (text, images, videos, etc.)
    */
   private handleContentAdded(event: StreamEvent): void {
-    console.log("[ContentAdded] Adding content:", event.payload)
+    console.log("[ContentAdded] Event received:", {
+      event_id: event.event_id,
+      content_type: event.payload?.content_type,
+      has_metadata: !!event.payload?.metadata,
+      metadata_keys: event.payload?.metadata ? Object.keys(event.payload.metadata) : [],
+      payload_keys: event.payload ? Object.keys(event.payload) : []
+    })
+    
+    // Log full metadata if present
+    if (event.payload?.metadata) {
+      console.log("[ContentAdded] Full metadata:", JSON.stringify(event.payload.metadata, null, 2))
+    } else {
+      console.warn("[ContentAdded] ⚠️ NO METADATA in payload - Agent components will not render!")
+    }
 
     this.updateMessage(event.message_id, (message) => {
       if (!event.payload) return message
@@ -162,6 +175,17 @@ export class StreamEventHandler {
         is_placeholder: isPlaceholder,
         created_at: now,
         updated_at: now,
+      }
+
+      // Add task_id if provided (important for Agent workflows)
+      if (event.payload.task_id) {
+        newBlock.task_id = event.payload.task_id as string
+      }
+
+      // Add metadata if provided (important for Agent-specific rendering)
+      if (event.payload.metadata) {
+        newBlock.metadata = event.payload.metadata as Record<string, unknown>
+        console.log("[ContentAdded] Metadata added:", newBlock.metadata)
       }
 
       // Add type-specific data if available
@@ -202,7 +226,19 @@ export class StreamEventHandler {
    * Handle content updated events
    */
   private handleContentUpdated(event: StreamEvent): void {
-    console.log("[ContentUpdated] Updating content:", event.payload)
+    console.log("[ContentUpdated] Event received:", {
+      event_id: event.event_id,
+      content_id: event.payload?.content_id,
+      content_type: event.payload?.content_type,
+      has_metadata: !!event.payload?.metadata,
+      metadata_keys: event.payload?.metadata ? Object.keys(event.payload.metadata) : [],
+      payload_keys: event.payload ? Object.keys(event.payload) : []
+    })
+    
+    // Log full metadata if present
+    if (event.payload?.metadata) {
+      console.log("[ContentUpdated] Full metadata:", JSON.stringify(event.payload.metadata, null, 2))
+    }
 
     this.updateMessage(event.message_id, (message) => {
       if (!event.payload) return message
@@ -238,6 +274,20 @@ export class StreamEventHandler {
           updatedBlock.sequence = event.payload.sequence as number
         }
 
+        // Update task_id if provided (important for Agent workflows)
+        if (event.payload.task_id !== undefined) {
+          updatedBlock.task_id = event.payload.task_id as string
+        }
+
+        // Update or merge metadata if provided (important for Agent-specific rendering)
+        if (event.payload.metadata) {
+          updatedBlock.metadata = {
+            ...updatedBlock.metadata,
+            ...(event.payload.metadata as Record<string, unknown>)
+          }
+          console.log("[ContentUpdated] Metadata updated:", updatedBlock.metadata)
+        }
+
         // Add content type-specific data if provided
         if (event.payload.text !== undefined) {
           updatedBlock.text = event.payload.text as string
@@ -261,8 +311,8 @@ export class StreamEventHandler {
         }
 
         // Warn if no data provided
-        if (!event.payload.text && !event.payload.image && !event.payload.video && !event.payload.audio && !event.payload.file) {
-          console.warn("[ContentUpdated] No actual content data provided, content_id:", contentId)
+        if (!event.payload.text && !event.payload.image && !event.payload.video && !event.payload.audio && !event.payload.file && !event.payload.metadata) {
+          console.warn("[ContentUpdated] No actual content data or metadata provided, content_id:", contentId)
         }
 
         message.content_blocks[blockIndex] = updatedBlock
@@ -288,12 +338,17 @@ export class StreamEventHandler {
     this.updateMessage(event.message_id, (message) => {
       if (!event.payload) return message
       
+      const payload = event.payload;
       message.pending_tasks = {
         ...message.pending_tasks,
-        [event.payload.task_id as string]: {
-          status: event.payload.status,
-          progress: event.payload.progress,
-          task_type: event.payload.task_type,
+        [payload.task_id as string]: {
+          task_id: payload.task_id as string,
+          status: typeof payload.status === 'string' ? payload.status : "pending",
+          progress: typeof payload.progress === 'number' ? payload.progress : 0,
+          task_type: typeof payload.task_type === 'string' ? payload.task_type : undefined,
+          tool_name: typeof payload.tool_name === 'string' ? payload.tool_name : undefined,
+          tool_args: payload.tool_args && typeof payload.tool_args === 'object' ? payload.tool_args as Record<string, unknown> : undefined,
+          display_text: typeof payload.display_text === 'string' ? payload.display_text : undefined,
         }
       }
       return message
@@ -315,8 +370,8 @@ export class StreamEventHandler {
           ...message.pending_tasks,
           [taskId]: {
             ...message.pending_tasks[taskId],
-            progress: event.payload.progress,
-            status: event.payload.status,
+            progress: typeof event.payload.progress === 'number' ? event.payload.progress : undefined,
+            status: typeof event.payload.status === 'string' ? event.payload.status : undefined,
           }
         }
       }
@@ -364,7 +419,8 @@ export class StreamEventHandler {
       errorMessage = payload.error
     } else if (payload.error && typeof payload.error === 'object') {
       // If error is an object, try to extract message
-      errorMessage = (payload.error as any).message || JSON.stringify(payload.error)
+      const errorObj = payload.error as { message?: string };
+      errorMessage = errorObj.message || JSON.stringify(payload.error)
     } else {
       errorMessage = "Message processing failed"
     }

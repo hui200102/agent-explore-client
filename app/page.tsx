@@ -123,7 +123,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 dark:from-slate-950 dark:via-blue-950/30 dark:to-indigo-950/20 p-4 sm:p-6 lg:p-8 relative overflow-hidden">
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 dark:from-slate-950 dark:via-blue-950/30 dark:to-indigo-950/20 relative overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl animate-pulse"></div>
@@ -131,7 +131,7 @@ export default function Home() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500/3 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
       </div>
 
-      <Card className="w-full max-w-7xl h-[85vh] max-h-[900px] shadow-2xl border-2 backdrop-blur-sm bg-card/95 relative z-10 animate-fade-in-up flex overflow-hidden">
+      <Card className="w-full h-full shadow-2xl border-0 backdrop-blur-sm bg-card/95 relative z-10 flex overflow-hidden rounded-none">
         {/* Session Sidebar */}
         <SessionSidebar
           sessions={sessionList.sessions}
@@ -173,13 +173,6 @@ export default function Home() {
           </CardContent>
         </div>
       </Card>
-
-      {/* Footer text */}
-      <div className="absolute bottom-4 left-0 right-0 text-center">
-        <p className="text-xs text-muted-foreground/60">
-          Built with Next.js, TypeScript, and Redis
-        </p>
-      </div>
     </div>
   )
 }

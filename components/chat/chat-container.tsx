@@ -285,47 +285,49 @@ export function ChatContainer({
         </div>
       </div>
 
-      <ScrollArea className="flex-1 p-6" ref={scrollRef}>
-        {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center space-y-4 max-w-md animate-fade-in-up">
-              <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
-                <Bot className="h-8 w-8 text-primary-foreground" />
-              </div>
-              <div>
-                <p className="text-xl font-semibold text-foreground mb-2">Start a Conversation</p>
-                <p className="text-sm text-muted-foreground">
-                  Type a message below to begin chatting. I&apos;m here to help with any questions or tasks you have.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2 justify-center mt-6">
-                {["Ask a question", "Get help", "Start chatting"].map((suggestion, i) => (
-                  <div 
-                    key={i}
-                    className="px-4 py-2 rounded-full bg-muted/50 text-xs text-muted-foreground border border-border/50"
-                  >
-                    {suggestion}
-                  </div>
-                ))}
+      <ScrollArea className="flex-1" ref={scrollRef}>
+        <div className="h-full px-6 py-6">
+          {messages.length === 0 ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center space-y-4 max-w-md animate-fade-in-up">
+                <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
+                  <Bot className="h-8 w-8 text-primary-foreground" />
+                </div>
+                <div>
+                  <p className="text-xl font-semibold text-foreground mb-2">Start a Conversation</p>
+                  <p className="text-sm text-muted-foreground">
+                    Type a message below to begin chatting. I&apos;m here to help with any questions or tasks you have.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 justify-center mt-6">
+                  {["Ask a question", "Get help", "Start chatting"].map((suggestion, i) => (
+                    <div 
+                      key={i}
+                      className="px-4 py-2 rounded-full bg-muted/50 text-xs text-muted-foreground border border-border/50"
+                    >
+                      {suggestion}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="space-y-2 max-w-4xl mx-auto">
-            {messages.map((message) => (
-              <MessageBubble key={message.message_id} message={message} />
-            ))}
-            
-            {/* Tool call indicator - shows temporarily when tool is being called */}
-            {toolCallState && (
-              <ToolCallIndicator 
-                toolName={toolCallState.toolName}
-                status={toolCallState.status}
-                className="ml-14"
-              />
-            )}
-          </div>
-        )}
+          ) : (
+            <div className="space-y-2">
+              {messages.map((message) => (
+                <MessageBubble key={message.message_id} message={message} />
+              ))}
+              
+              {/* Tool call indicator - shows temporarily when tool is being called */}
+              {toolCallState && (
+                <ToolCallIndicator 
+                  toolName={toolCallState.toolName}
+                  status={toolCallState.status}
+                  className="ml-14"
+                />
+              )}
+            </div>
+          )}
+        </div>
       </ScrollArea>
 
       <ChatInput 

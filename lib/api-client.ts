@@ -147,12 +147,23 @@ export interface Message {
   session_id: string;
   role: "user" | "assistant" | "system" | "agent" | "tool";
   content_blocks: ContentBlock[];
-  pending_tasks: Record<string, unknown>;
+  pending_tasks: Record<string, PendingTask>;
   is_complete: boolean;
   parent_message_id?: string | null;
   metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+}
+
+export interface PendingTask {
+  task_id: string;
+  tool_name?: string;
+  tool_args?: Record<string, unknown>;
+  display_text?: string;
+  status?: string;
+  progress?: number;
+  task_type?: string;
+  [key: string]: unknown;
 }
 
 export interface GetMessagesResponse {
@@ -199,9 +210,41 @@ export interface ContentBlock {
   audio?: AudioContent;
   file?: FileContent;
   task_id?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: ContentBlockMetadata;
   created_at: string;
   updated_at: string;
+}
+
+export type ContentBlockMetadata = 
+  | PlanningMetadata
+  | ExecutionMetadata
+  | EvaluationMetadata
+  | ReflectionMetadata
+  | Record<string, unknown>;
+
+export interface PlanningMetadata {
+  phase: "planning";
+  type: "status" | "plan";
+  steps?: string[];
+}
+
+export interface ExecutionMetadata {
+  phase: "execution";
+  type: "status" | "step_progress";
+  step?: number;
+  total?: number;
+}
+
+export interface EvaluationMetadata {
+  phase: "evaluation";
+  type: "status" | "result";
+  status?: "pass" | "fail";
+}
+
+export interface ReflectionMetadata {
+  phase: "reflection";
+  type: "status" | "insight" | "result";
+  full_text?: string;
 }
 
 export interface ImageContent {
