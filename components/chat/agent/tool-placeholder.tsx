@@ -10,26 +10,20 @@ interface ToolPlaceholderProps {
 export function ToolPlaceholder({ task, className }: ToolPlaceholderProps) {
   return (
     <div className={cn(
-      "flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300",
+      "flex items-center gap-2 p-2 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-200 dark:border-zinc-800 animate-fade-in-up",
       className
     )}>
-      <div className="relative flex-shrink-0">
-        <div className="absolute inset-0 bg-blue-500/20 rounded-full animate-ping" />
-        <div className="relative bg-white p-1.5 rounded-full border border-slate-200">
-          <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
-        </div>
-      </div>
+      <Loader2 className="h-3.5 w-3.5 text-primary animate-spin flex-shrink-0" />
       
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-slate-700 truncate">
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm text-muted-foreground truncate">
             {task.display_text || task.tool_name || "Running tool..."}
           </span>
-          <Wrench className="h-3 w-3 text-slate-400" />
         </div>
         
         {task.tool_args && (
-          <div className="mt-1 text-xs text-slate-500 font-mono truncate max-w-[300px] opacity-70">
+          <div className="mt-0.5 text-xs text-muted-foreground/60 font-mono truncate">
             {JSON.stringify(task.tool_args)}
           </div>
         )}

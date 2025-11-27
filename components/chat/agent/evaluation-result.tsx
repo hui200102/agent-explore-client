@@ -1,6 +1,5 @@
 import { CheckCircle2, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 interface EvaluationResultProps {
   status: "pass" | "fail"
@@ -12,30 +11,31 @@ export function EvaluationResult({ status, text, className }: EvaluationResultPr
   const isPass = status === "pass"
 
   return (
-    <Alert 
-      variant={isPass ? "default" : "destructive"}
+    <div 
       className={cn(
-        "border-l-4",
-        isPass ? "border-l-green-500 bg-green-50/50 border-green-200 text-green-900" : "border-l-red-500 bg-red-50/50",
+        "rounded-lg border p-3 my-2",
+        isPass 
+          ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900" 
+          : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900",
         className
       )}
     >
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-2.5">
         {isPass ? (
-          <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+          <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
         ) : (
-          <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
+          <XCircle className="h-4 w-4 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
         )}
-        <div className="space-y-1">
-          <AlertTitle className={cn("font-semibold", isPass ? "text-green-700" : "")}>
-            Evaluation: {isPass ? "PASSED" : "FAILED"}
-          </AlertTitle>
-          <AlertDescription className={cn("text-sm", isPass ? "text-green-800/90" : "")}>
+        <div className="space-y-1 flex-1 min-w-0">
+          <div className={cn("text-sm font-semibold", isPass ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300")}>
+            {isPass ? "✓ Passed" : "✗ Failed"}
+          </div>
+          <div className={cn("text-sm", isPass ? "text-green-700/90 dark:text-green-400/90" : "text-red-700/90 dark:text-red-400/90")}>
             {text}
-          </AlertDescription>
+          </div>
         </div>
       </div>
-    </Alert>
+    </div>
   )
 }
 

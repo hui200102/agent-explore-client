@@ -1,6 +1,6 @@
 "use client"
 
-import { X, File, Image as ImageIcon, Video, Music, FileText, Loader2, AlertCircle, RotateCw } from "lucide-react"
+import { X, File, Image as ImageIcon, Video, Music, FileText, Loader2, AlertCircle, RotateCw, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { UploadedFile } from "@/hooks/use-file-upload"
 
@@ -32,6 +32,47 @@ export function FilePreview({ file, onRemove, onRetry, compact = false }: FilePr
       case "error": return "border-destructive/50 bg-destructive/5"
       case "uploading": return "border-primary/50 bg-primary/5"
       default: return "border-border/50 bg-muted/30"
+    }
+  }
+
+  const handleDownload = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    
+    // 使用文件的 URL 或 preview 作为下载源
+    const downloadUrl = file.url || file.preview
+    if (!downloadUrl) {
+      console.warn("No download URL available for file:", file.name)
+      return
+    }
+
+    // 创建隐藏的 a 标签进行下载
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.download = file.name
+    link.target = '_blank'
+    
+    // 对于外部 URL，可能需要先 fetch 再下载
+    if (downloadUrl.startsWith('http')) {
+      fetch(downloadUrl)
+        .then(response => response.blob())
+        .then(blob => {
+          const blobUrl = window.URL.createObjectURL(blob)
+          link.href = blobUrl
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+          window.URL.revokeObjectURL(blobUrl)
+        })
+        .catch(error => {
+          console.error("Download failed:", error)
+          // 如果 fetch 失败，尝试直接打开
+          window.open(downloadUrl, '_blank')
+        })
+    } else {
+      // 本地 URL 可以直接下载
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     }
   }
 
@@ -105,6 +146,15 @@ export function FilePreview({ file, onRemove, onRetry, compact = false }: FilePr
 
         {/* Actions */}
         <div className="flex items-center gap-1">
+          {file.uploadStatus === "success" && (file.url || file.preview) && (
+            <button
+              onClick={handleDownload}
+              className="p-1 rounded hover:bg-blue-500/10 text-muted-foreground hover:text-blue-600 transition-colors"
+              title="Download file"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </button>
+          )}
           {file.uploadStatus === "error" && onRetry && (
             <button
               onClick={(e) => {
@@ -177,13 +227,25 @@ export function FilePreview({ file, onRemove, onRetry, compact = false }: FilePr
         </div>
       )}
 
-      {/* Remove Button */}
-      <button
-        onClick={() => onRemove(file.id)}
-        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors opacity-0 group-hover:opacity-100"
-      >
-        <X className="h-4 w-4" />
-      </button>
+      {/* Action Buttons */}
+      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {file.uploadStatus === "success" && (file.url || file.preview) && (
+          <button
+            onClick={handleDownload}
+            className="p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+            title="Download file"
+          >
+            <Download className="h-4 w-4" />
+          </button>
+        )}
+        <button
+          onClick={() => onRemove(file.id)}
+          className="p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors"
+          title="Remove file"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
 
       {/* Error State */}
       {file.uploadStatus === "error" && (

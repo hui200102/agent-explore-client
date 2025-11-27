@@ -1,10 +1,9 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Card } from "@/components/ui/card"
 import type { Message, ContentBlock } from "@/lib/api-client"
-import { User, Image as ImageIcon, Video, Music, FileText, Loader2, Sparkles, AlertCircle } from "lucide-react"
+import { User, Image as ImageIcon, Video, Music, FileText, Loader2, Bot, AlertCircle } from "lucide-react"
+import { MarkdownContent } from "./markdown-content"
 
 // Agent Components
 import { AgentStatusBar } from "@/components/chat/agent/agent-status-bar"
@@ -22,15 +21,6 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const isAssistant = message.role === "assistant"
   const hasPendingTasks = Object.keys(message.pending_tasks).length > 0
   
-  // Debug: Log message structure
-  console.log("[MessageBubble] Rendering message:", {
-    message_id: message.message_id,
-    role: message.role,
-    content_blocks_count: message.content_blocks.length,
-    pending_tasks_count: Object.keys(message.pending_tasks).length,
-    is_complete: message.is_complete
-  });
-  
   // Extract error information
   const errorData = message.metadata?.error
   const hasError = Boolean(errorData)
@@ -44,102 +34,107 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const sortedBlocks = [...message.content_blocks]
     .sort((a, b) => (a.sequence || 0) - (b.sequence || 0))
 
-  return (
-    <div
-      className={cn(
-        "flex gap-3 mb-6 items-start animate-fade-in-up",
-        isAssistant ? "justify-start" : "justify-end"
-      )}
-    >
-      {isAssistant && (
-        <Avatar className="h-10 w-10 border-2 border-primary/10 shadow-sm">
-          <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground">
-            <Sparkles className="h-5 w-5" />
-          </AvatarFallback>
-        </Avatar>
-      )}
+  // Separate thinking/agent blocks from content blocks
+  const thinkingBlocks = sortedBlocks.filter(b => b.metadata?.phase)
+  const contentBlocks = sortedBlocks.filter(b => !b.metadata?.phase)
 
-      <div className={cn("flex flex-col gap-2 max-w-[90%] min-w-[200px]", isAssistant ? "items-start" : "items-end")}>
-        <Card
-          className={cn(
-            "px-4 py-3 min-w-0 shadow-sm border transition-all duration-200 hover:shadow-md",
-            hasError
-              ? "bg-destructive/5 border-destructive/30"
-              : isAssistant
-              ? "bg-card border-border/50"
-              : "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground border-primary/20"
-          )}
-        >
-          {sortedBlocks.length > 0 ? (
-            <div className="space-y-3">
-              {sortedBlocks.map((block, index) => (
+  return (
+    <div className={cn(
+      "group w-full py-6 animate-fade-in-up border-b border-border/5 last:border-0",
+      isAssistant ? "bg-background" : "bg-muted/20"
+    )}>
+      <div className="max-w-4xl mx-auto px-4 md:px-6 flex gap-6">
+        {/* Avatar Column */}
+        <div className="flex-shrink-0 mt-1">
+          <div className={cn(
+            "w-8 h-8 rounded-lg flex items-center justify-center shadow-sm ring-1 ring-border/50",
+            isAssistant 
+              ? "bg-primary text-primary-foreground shadow-primary/20" 
+              : "bg-background text-muted-foreground"
+          )}>
+            {isAssistant ? (
+              <Bot className="h-5 w-5" />
+            ) : (
+              <User className="h-5 w-5" />
+            )}
+          </div>
+        </div>
+
+        {/* Content Column */}
+        <div className="flex-1 min-w-0 space-y-4">
+          {/* Header with Role & Time */}
+          <div className="flex items-center gap-3 select-none">
+            <span className="font-semibold text-sm text-foreground">
+              {isAssistant ? "AI Assistant" : "You"}
+            </span>
+            <span className="text-xs text-muted-foreground/50">
+              {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+
+          {/* Agent Thinking Process (if any) */}
+          {thinkingBlocks.length > 0 && (
+            <div className="space-y-3 mb-4">
+              {thinkingBlocks.map((block, index) => (
                 <ContentBlockRenderer 
                   key={block.content_id} 
                   block={block}
                   isAssistant={isAssistant}
                   isFirst={index === 0}
+                  messageIsComplete={message.is_complete}
+                  isLastBlock={index === thinkingBlocks.length - 1}
                 />
               ))}
             </div>
-          ) : !message.is_complete ? (
-            <div className="flex items-center gap-2 py-1">
-              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              <span className={cn(
-                "text-sm",
-                isAssistant ? "text-muted-foreground" : "text-primary-foreground/70"
-              )}>
-                {isAssistant ? "Thinking..." : "Sending..."}
-              </span>
-            </div>
-          ) : (
-            <div className={cn(
-              "text-sm text-muted-foreground italic",
-              isAssistant ? "text-muted-foreground" : "text-primary-foreground/70"
-            )}>
-              No content
-            </div>
           )}
 
-          {/* Error display */}
-          {hasError && errorMessage && (
-            <div className="mt-3 pt-3 border-t border-destructive/20">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-destructive">
-                    Message processing failed
-                  </p>
-                  <p className="text-xs text-destructive/80 mt-1">
-                    {errorMessage}
-                  </p>
+          {/* Main Content */}
+          <div className={cn(
+            "prose prose-zinc dark:prose-invert max-w-none prose-p:leading-7 prose-pre:p-0 prose-pre:rounded-xl",
+            !isAssistant && "text-foreground"
+          )}>
+            {contentBlocks.length > 0 ? (
+              contentBlocks.map((block, index) => (
+                <ContentBlockRenderer 
+                  key={block.content_id} 
+                  block={block}
+                  isAssistant={isAssistant}
+                  isFirst={index === 0}
+                  messageIsComplete={message.is_complete}
+                />
+              ))
+            ) : !message.is_complete && thinkingBlocks.length === 0 ? (
+               <div className="flex items-center gap-2 text-muted-foreground py-2">
+                <div className="flex space-x-1">
+                  <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                  <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                  <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce"></div>
                 </div>
+                <span className="text-sm font-medium">Thinking...</span>
               </div>
+            ) : contentBlocks.length === 0 && thinkingBlocks.length === 0 ? (
+              <div className="text-sm text-muted-foreground/50 italic">Empty message</div>
+            ) : null}
+          </div>
+
+          {/* Error State */}
+          {hasError && errorMessage && (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-destructive/5 border border-destructive/20 text-destructive text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span>{errorMessage}</span>
             </div>
           )}
 
-          {/* Pending tasks (Tool placeholders) */}
+          {/* Pending Tasks / Tools */}
           {!message.is_complete && hasPendingTasks && (
-            <div className="mt-3 space-y-2 pt-2 border-t border-border/50">
-              {Object.values(message.pending_tasks).map((task) => {
-                console.log("[MessageBubble] Rendering ToolPlaceholder for task:", task);
-                return <ToolPlaceholder key={task.task_id} task={task} />
-              })}
+            <div className="pt-2 space-y-2">
+              {Object.values(message.pending_tasks).map((task) => (
+                <ToolPlaceholder key={task.task_id} task={task} />
+              ))}
             </div>
           )}
-        </Card>
-
-        <span className="text-xs text-muted-foreground px-1 font-medium">
-          {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </span>
+        </div>
       </div>
-
-      {!isAssistant && (
-        <Avatar className="h-10 w-10 border-2 border-muted shadow-sm">
-          <AvatarFallback className="bg-gradient-to-br from-secondary to-muted">
-            <User className="h-5 w-5 text-secondary-foreground" />
-          </AvatarFallback>
-        </Avatar>
-      )}
     </div>
   )
 }
@@ -147,18 +142,22 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 function ContentBlockRenderer({ 
   block, 
   isAssistant, 
-  isFirst 
+  isFirst,
+  messageIsComplete,
+  isLastBlock
 }: { 
   block: ContentBlock
   isAssistant: boolean
   isFirst: boolean
+  messageIsComplete?: boolean
+  isLastBlock?: boolean
 }) {
   // Handle placeholder
   if (block.is_placeholder) {
     const placeholderMessage = block.text || `Generating ${block.content_type}...`
     return (
-      <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50 animate-pulse">
-        <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
+      <div className="flex items-center gap-2 p-2 bg-zinc-50 dark:bg-zinc-900/50 rounded-md border border-zinc-200 dark:border-zinc-800 animate-pulse">
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary flex-shrink-0" />
         <span className="text-xs text-muted-foreground">
           {placeholderMessage}
         </span>
@@ -186,7 +185,7 @@ function ContentBlockRenderer({
     // Planning Phase
     if (phase === "planning" && "type" in meta) {
       if (meta.type === "status") {
-        return <AgentStatusBar phase="planning" text={block.text || "Planning..."} />
+        return <AgentStatusBar phase="planning" text={block.text || "Planning..."} animate={!messageIsComplete && isLastBlock} />
       }
       if (meta.type === "plan" && "steps" in meta && Array.isArray(meta.steps)) {
         return <PlanCard steps={meta.steps} />
@@ -197,7 +196,16 @@ function ContentBlockRenderer({
     if (phase === "execution" && "type" in meta) {
       if (meta.type === "status") {
         const isComplete = block.text?.includes("Complete") || false;
-        return <AgentStatusBar phase={isComplete ? "success" : "execution"} text={block.text || "Executing..."} />
+        // Logic:
+        // 1. If message is complete OR block says complete -> Success (Green check, no animate)
+        // 2. If NOT last block -> Success (Green check, no animate) - assumes past steps are done
+        // 3. Else -> Execution (Blue zap, animate)
+        
+        const shouldBeSuccess = messageIsComplete || isComplete || !isLastBlock;
+        const finalPhase = shouldBeSuccess ? "success" : "execution";
+        const shouldAnimate = !shouldBeSuccess; // Animate only if executing and is last block
+
+        return <AgentStatusBar phase={finalPhase} text={block.text || "Executing..."} animate={shouldAnimate} />
       }
       if (meta.type === "step_progress") {
         const step = "step" in meta && typeof meta.step === "number" ? meta.step : 0;
@@ -209,7 +217,7 @@ function ContentBlockRenderer({
     // Evaluation Phase
     if (phase === "evaluation" && "type" in meta) {
       if (meta.type === "status") {
-        return <AgentStatusBar phase="evaluation" text={block.text || "Evaluating..."} />
+        return <AgentStatusBar phase="evaluation" text={block.text || "Evaluating..."} animate={!messageIsComplete && isLastBlock} />
       }
       if (meta.type === "result") {
         const status = "status" in meta && (meta.status === "pass" || meta.status === "fail") ? meta.status : "fail";
@@ -220,7 +228,7 @@ function ContentBlockRenderer({
     // Reflection Phase
     if (phase === "reflection" && "type" in meta) {
       if (meta.type === "status") {
-        return <AgentStatusBar phase="reflection" text={block.text || "Reflecting..."} />
+        return <AgentStatusBar phase="reflection" text={block.text || "Reflecting..."} animate={!messageIsComplete && isLastBlock} />
       }
       if (meta.type === "insight") {
         const fullText = "full_text" in meta && typeof meta.full_text === "string" ? meta.full_text : undefined;
@@ -263,11 +271,17 @@ function TextBlock({
 
   return (
     <div className={cn(
-      "text-sm whitespace-pre-wrap break-words overflow-wrap-anywhere leading-relaxed",
-      isAssistant ? "text-foreground" : "text-primary-foreground",
+      "leading-7 text-[15px]",
+      isAssistant ? "text-foreground" : "text-foreground",
       !isFirst && "mt-3"
     )}>
-      {block.text}
+      {isAssistant ? (
+        <MarkdownContent content={block.text} />
+      ) : (
+        <div className="whitespace-pre-wrap break-words">
+          {block.text}
+        </div>
+      )}
     </div>
   )
 }
@@ -280,7 +294,7 @@ function ImageBlock({ block }: { block: ContentBlock }) {
 
   if (!imageSrc) {
     return (
-      <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50">
+      <div className="flex items-center gap-2 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
         <ImageIcon className="h-4 w-4 text-muted-foreground" />
         <span className="text-xs text-muted-foreground">Image (no data)</span>
       </div>
@@ -288,19 +302,19 @@ function ImageBlock({ block }: { block: ContentBlock }) {
   }
 
   return (
-    <div className="relative group">
+    <div className="relative group my-2">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={imageSrc}
         alt={alt || caption || "Image"}
-        className="rounded-lg max-w-full h-auto border border-border/50 shadow-sm transition-all duration-200 group-hover:shadow-md"
+        className="rounded-lg max-w-full h-auto border border-zinc-200 dark:border-zinc-800 shadow-sm transition-all duration-200 hover:shadow-md"
         style={{
-          maxHeight: "400px",
+          maxHeight: "500px",
           objectFit: "contain",
         }}
       />
       {caption && (
-        <p className="text-xs text-muted-foreground mt-2 px-1">
+        <p className="text-xs text-muted-foreground/70 mt-2">
           {caption}
         </p>
       )}
@@ -316,7 +330,7 @@ function VideoBlock({ block }: { block: ContentBlock }) {
 
   if (!videoSrc) {
     return (
-      <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50">
+      <div className="flex items-center gap-2 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
         <Video className="h-4 w-4 text-muted-foreground" />
         <span className="text-xs text-muted-foreground">Video (no data)</span>
       </div>
@@ -324,16 +338,16 @@ function VideoBlock({ block }: { block: ContentBlock }) {
   }
 
   return (
-    <div className="relative">
+    <div className="relative my-2">
       <video
         src={videoSrc}
         controls
-        className="rounded-lg max-w-full h-auto border border-border/50 shadow-sm"
-        style={{ maxHeight: "400px" }}
+        className="rounded-lg max-w-full h-auto border border-zinc-200 dark:border-zinc-800 shadow-sm"
+        style={{ maxHeight: "500px" }}
       >
         <track kind="captions" />
       </video>
-      {title && <p className="text-xs text-muted-foreground mt-2 px-1">{title}</p>}
+      {title && <p className="text-xs text-muted-foreground/70 mt-2">{title}</p>}
     </div>
   )
 }
@@ -346,7 +360,7 @@ function AudioBlock({ block }: { block: ContentBlock }) {
 
   if (!audioSrc) {
     return (
-      <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg border border-border/50">
+      <div className="flex items-center gap-2 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
         <Music className="h-4 w-4 text-muted-foreground" />
         <span className="text-xs text-muted-foreground">Audio (no data)</span>
       </div>
@@ -354,7 +368,7 @@ function AudioBlock({ block }: { block: ContentBlock }) {
   }
 
   return (
-    <div className="flex flex-col gap-3 p-4 bg-muted/30 rounded-lg border border-border/50">
+    <div className="flex flex-col gap-2 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 my-2">
       <div className="flex items-center gap-2">
         <Music className="h-4 w-4 text-primary" />
         {title && <span className="text-sm font-medium">{title}</span>}
@@ -383,10 +397,10 @@ function FileBlock({ block }: { block: ContentBlock }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border border-border/50 hover:bg-muted/50 hover:border-primary/30 transition-all duration-200 hover:shadow-sm group"
+      className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-primary/40 transition-all duration-200 hover:shadow-sm group my-2"
     >
       <div className="p-2 rounded-md bg-primary/10 group-hover:bg-primary/20 transition-colors">
-        <FileText className="h-5 w-5 text-primary flex-shrink-0" />
+        <FileText className="h-4 w-4 text-primary flex-shrink-0" />
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{name || "File"}</p>

@@ -13,23 +13,20 @@ export function ToolCallIndicator({ toolName, status, className }: ToolCallIndic
   return (
     <div 
       className={cn(
-        "flex items-center gap-3 px-4 py-3 text-sm bg-primary/5 border border-primary/10 rounded-xl shadow-sm animate-fade-in-up backdrop-blur-sm",
+        "flex items-center gap-2 px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-lg animate-fade-in-up",
         className
       )}
     >
-      <div className="p-1.5 rounded-lg bg-primary/10">
-        <Wrench className="h-4 w-4 text-primary flex-shrink-0" />
-      </div>
-      <span className="flex items-center gap-2 text-foreground font-medium">
-        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary flex-shrink-0" />
+      <span className="text-muted-foreground">
         {toolName ? (
           <>
-            Calling tool: <span className="text-primary font-semibold">{toolName}</span>
+            <span className="text-foreground font-medium">{toolName}</span>
+            {status && <span className="ml-1 text-muted-foreground/60">· {status}</span>}
           </>
         ) : (
-          "Processing"
+          "Processing..."
         )}
-        {status && <span className="text-muted-foreground font-normal">({status})</span>}
       </span>
     </div>
   )
@@ -40,28 +37,26 @@ export function TypingIndicator({ className }: { className?: string }) {
   return (
     <div 
       className={cn(
-        "flex items-start gap-3 mb-6 animate-fade-in-up",
+        "flex items-start gap-4 py-4 animate-fade-in-up",
         className
       )}
     >
-      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center border-2 border-primary/10 shadow-sm">
-        <Loader2 className="h-5 w-5 text-primary-foreground animate-spin" />
+      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/90 to-primary flex items-center justify-center shadow-sm">
+        <Loader2 className="h-4 w-4 text-primary-foreground animate-spin" />
       </div>
-      <div className="flex items-center gap-2 px-4 py-3 bg-card border border-border/50 rounded-2xl shadow-sm">
-        <div className="flex gap-1">
-          <span 
-            className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-typing-dot"
-            style={{ animationDelay: '0s' }}
-          />
-          <span 
-            className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-typing-dot"
-            style={{ animationDelay: '0.2s' }}
-          />
-          <span 
-            className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-typing-dot"
-            style={{ animationDelay: '0.4s' }}
-          />
-        </div>
+      <div className="flex items-center gap-1.5 py-2">
+        <span 
+          className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-typing-dot"
+          style={{ animationDelay: '0s' }}
+        />
+        <span 
+          className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-typing-dot"
+          style={{ animationDelay: '0.2s' }}
+        />
+        <span 
+          className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-typing-dot"
+          style={{ animationDelay: '0.4s' }}
+        />
       </div>
     </div>
   )

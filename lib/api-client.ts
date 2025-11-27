@@ -776,6 +776,9 @@ export class ApiClient {
 
       const handleEvent = (event: MessageEvent) => {
         try {
+          if (event.data === 'ping') {
+            return;
+          }
           const data: StreamEvent = JSON.parse(event.data);
           
           // Update last event ID for reconnection

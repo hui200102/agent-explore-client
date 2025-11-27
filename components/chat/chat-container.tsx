@@ -271,84 +271,76 @@ export function ChatContainer({
   }
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-muted/5 via-background to-muted/5">
-      {/* Session info bar */}
-      <div className="px-4 py-3 border-b bg-gradient-to-r from-background via-muted/5 to-background backdrop-blur-sm flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse shadow-sm shadow-green-500/50"></div>
-          <span className="text-xs font-medium text-muted-foreground">
-            Session: <span className="text-foreground font-mono">{sessionId.slice(0, 8)}...</span>
-          </span>
-        </div>
-        <div className="text-xs text-muted-foreground">
-          {messages.length} message{messages.length !== 1 ? "s" : ""}
-        </div>
-      </div>
-
+    <div className="flex flex-col h-full bg-background">
       <ScrollArea className="flex-1" ref={scrollRef}>
-        <div className="h-full px-6 py-6">
+        <div className="h-full">
           {messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center space-y-4 max-w-md animate-fade-in-up">
-                <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
-                  <Bot className="h-8 w-8 text-primary-foreground" />
+            <div className="flex items-center justify-center h-full px-6">
+              <div className="text-center space-y-8 max-w-2xl animate-fade-in-up">
+                <div className="mx-auto w-20 h-20 rounded-3xl bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center shadow-sm ring-1 ring-primary/10">
+                  <Bot className="h-10 w-10 text-primary" />
                 </div>
-                <div>
-                  <p className="text-xl font-semibold text-foreground mb-2">Start a Conversation</p>
-                  <p className="text-sm text-muted-foreground">
-                    Type a message below to begin chatting. I&apos;m here to help with any questions or tasks you have.
+                <div className="space-y-2">
+                  <h3 className="text-3xl font-bold text-foreground tracking-tight">How can I help you today?</h3>
+                  <p className="text-base text-muted-foreground max-w-md mx-auto">
+                    I&apos;m here to assist with analysis, coding, writing, and more.
                   </p>
-                </div>
-                <div className="flex flex-wrap gap-2 justify-center mt-6">
-                  {["Ask a question", "Get help", "Start chatting"].map((suggestion, i) => (
-                    <div 
-                      key={i}
-                      className="px-4 py-2 rounded-full bg-muted/50 text-xs text-muted-foreground border border-border/50"
-                    >
-                      {suggestion}
-                    </div>
-                  ))}
                 </div>
               </div>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="flex flex-col pb-8">
               {messages.map((message) => (
                 <MessageBubble key={message.message_id} message={message} />
               ))}
               
               {/* Tool call indicator - shows temporarily when tool is being called */}
               {toolCallState && (
-                <ToolCallIndicator 
-                  toolName={toolCallState.toolName}
-                  status={toolCallState.status}
-                  className="ml-14"
-                />
+                <div className="py-6 animate-fade-in-up max-w-4xl mx-auto px-6 w-full">
+                  <div className="flex gap-6">
+                    <div className="w-8 flex-shrink-0" />
+                    <div className="flex-1">
+                      <ToolCallIndicator 
+                        toolName={toolCallState.toolName}
+                        status={toolCallState.status}
+                      />
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}
         </div>
       </ScrollArea>
 
-      <ChatInput 
-        onSend={handleSendMessage} 
-        disabled={!isConnected || sseStream.isReconnecting}
-        placeholder={sseStream.isReconnecting ? "Reconnecting..." : "Type your message..."}
-      />
+      <div className="p-6 bg-gradient-to-t from-background via-background to-background/0 z-10">
+        <div className="max-w-4xl mx-auto">
+          <ChatInput 
+            onSend={handleSendMessage} 
+            disabled={!isConnected || sseStream.isReconnecting}
+            placeholder={sseStream.isReconnecting ? "Reconnecting..." : "Ask me anything..."}
+          />
+        </div>
+        <div className="text-center mt-2">
+          <p className="text-[10px] text-muted-foreground/40">
+            AI can make mistakes. Please verify important information.
+          </p>
+        </div>
+      </div>
 
       {/* Reconnecting indicator */}
       {sseStream.isReconnecting && (
-        <div className="px-4 py-3 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 text-sm border-t border-yellow-500/20 flex items-center justify-center gap-2 backdrop-blur-sm">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="font-medium">Reconnecting to server...</span>
+        <div className="px-4 py-2 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 text-xs border-t border-yellow-500/20 flex items-center justify-center gap-2">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <span>Reconnecting...</span>
         </div>
       )}
 
       {/* Error message */}
       {(error || sseStream.error || messageHistory.error) && isConnected && !sseStream.isReconnecting && (
-        <div className="px-4 py-3 bg-destructive/10 text-destructive text-sm border-t border-destructive/20 flex items-center justify-center gap-2 backdrop-blur-sm">
-          <AlertCircle className="h-4 w-4" />
-          <span className="font-medium">{error || sseStream.error || messageHistory.error}</span>
+        <div className="px-4 py-2 bg-destructive/10 text-destructive text-xs border-t border-destructive/20 flex items-center justify-center gap-2">
+          <AlertCircle className="h-3.5 w-3.5" />
+          <span>{error || sseStream.error || messageHistory.error}</span>
         </div>
       )}
     </div>
