@@ -1,25 +1,91 @@
 /**
- * Stream Event Handler
- * Manages all SSE event processing logic
+ * Stream Event Handler - 重新设计的事件处理系统
+ * 
+ * 设计原则：
+ * 1. 清晰的事件分类和处理
+ * 2. 不可变状态更新
+ * 3. 完整的错误处理
+ * 4. 详细的日志记录
  */
 
 import type { 
   StreamEvent, 
   Message, 
-  ContentBlock, 
-  ImageContent, 
-  VideoContent, 
-  AudioContent, 
-  FileContent,
-  ToolCallPayload,
-  ToolResultPayload,
-  ErrorPayload
+  ContentBlock,
+  PendingTask
 } from "./api-client"
 
 interface ToolCallState {
   toolName?: string
   status?: string
 }
+
+// ==================== 工具函数 ====================
+
+/**
+ * 创建新的内容块ID
+ */
+function generateContentId(): string {
+  return `content_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+}
+
+/**
+ * 按sequence排序内容块
+ */
+function sortContentBlocks(blocks: ContentBlock[]): ContentBlock[] {
+  return [...blocks].sort((a, b) => {
+    const seqA = a.sequence ?? Infinity
+    const seqB = b.sequence ?? Infinity
+    return seqA - seqB
+  })
+}
+
+/**
+ * 查找最后一个纯文本块（用于追加text_delta）
+ */
+function findLastPureTextBlock(blocks: ContentBlock[]): number {
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const block = blocks[i]
+    // 纯文本块：content_type是text，没有metadata.phase，不是占位符
+    if (
+      block.content_type === "text" && 
+      !block.metadata?.phase && 
+      !block.is_placeholder
+    ) {
+      return i
+    }
+  }
+  return -1
+}
+
+/**
+ * 从payload创建ContentBlock
+ */
+function createContentBlockFromPayload(payload: Record<string, unknown>): ContentBlock {
+  const now = new Date().toISOString()
+  
+  const block: ContentBlock = {
+    content_id: (payload.content_id as string) || generateContentId(),
+    content_type: (payload.content_type as ContentBlock['content_type']) || 'text',
+    sequence: (payload.sequence as number) ?? 0,
+    is_placeholder: (payload.is_placeholder as boolean) ?? false,
+    created_at: now,
+    updated_at: now,
+  }
+
+  // 添加可选字段
+  if (payload.task_id) block.task_id = payload.task_id as string
+  if (payload.metadata) block.metadata = payload.metadata as Record<string, unknown>
+  if (payload.text !== undefined) block.text = payload.text as string
+  if (payload.image) block.image = payload.image as ContentBlock['image']
+  if (payload.video) block.video = payload.video as ContentBlock['video']
+  if (payload.audio) block.audio = payload.audio as ContentBlock['audio']
+  if (payload.file) block.file = payload.file as ContentBlock['file']
+
+  return block
+}
+
+// ==================== 事件处理器类 ====================
 
 export class StreamEventHandler {
   private messages: Message[]
@@ -37,531 +103,406 @@ export class StreamEventHandler {
   }
 
   /**
-   * Main event handler - routes events to specific handlers
+   * 主事件处理入口
    */
   handle(event: StreamEvent): void {
-    console.log(`[StreamEventHandler] Processing ${event.event_type}`)
+    console.log(`[StreamEvent] ${event.event_type}`, {
+      message_id: event.message_id,
+      session_id: event.session_id,
+      sequence: event.sequence,
+      payload_keys: event.payload ? Object.keys(event.payload) : []
+    })
 
-    // Check if this is a tool-related event
-    if (this.isToolEvent(event.event_type)) {
-      this.handleToolEvent(event)
-      return
+    // 路由到具体的处理函数
+    const handlers: Record<string, () => void> = {
+      'text_delta': () => this.handleTextDelta(event),
+      'content_added': () => this.handleContentAdded(event),
+      'content_updated': () => this.handleContentUpdated(event),
+      'task_started': () => this.handleTaskStarted(event),
+      'task_progress': () => this.handleTaskProgress(event),
+      'task_completed': () => this.handleTaskCompleted(event),
+      'task_failed': () => this.handleTaskFailed(event),
+      'tool_call': () => this.handleToolCall(event),
+      'tool_result': () => this.handleToolResult(event),
+      'error': () => this.handleError(event),
+      'message_end': () => this.handleMessageEnd(event),
     }
 
-    // Clear tool call indicator when non-tool event arrives
-    this.setToolCallState(null)
+    const handler = handlers[event.event_type]
+    if (handler) {
+      try {
+        handler()
+      } catch (error) {
+        console.error(`[StreamEvent] Error handling ${event.event_type}:`, error)
+      }
+    } else {
+      console.warn(`[StreamEvent] Unknown event type: ${event.event_type}`)
+    }
 
-    // Route to specific handler based on event type
-    switch (event.event_type) {
-      case "text_delta":
-        this.handleTextDelta(event)
-        break
-
-      case "content_added":
-        this.handleContentAdded(event)
-        break
-
-      case "content_updated":
-        this.handleContentUpdated(event)
-        break
-
-      case "task_started":
-        this.handleTaskStarted(event)
-        break
-
-      case "task_progress":
-        this.handleTaskProgress(event)
-        break
-
-      case "task_completed":
-      case "task_failed":
-        this.handleTaskCompleted(event)
-        break
-
-      case "error":
-        this.handleError(event)
-        break
-
-      case "message_end":
-        this.handleMessageEnd(event)
-        break
-
-      default:
-        console.warn(`[StreamEventHandler] Unknown event type: ${event.event_type}`)
+    // 清除tool call状态（如果不是tool相关事件）
+    if (!event.event_type.includes('tool')) {
+      this.setToolCallState(null)
     }
   }
 
   /**
-   * Handle text delta events (streaming text)
-   * Appends to the last text content block
+   * 处理 text_delta 事件
+   * 追加文本到最后一个纯文本块
    */
   private handleTextDelta(event: StreamEvent): void {
-    this.updateMessage(event.message_id, (message) => {
-      const delta = (event.payload?.delta as string) || ""
+    const delta = event.payload?.delta as string
+    if (!delta) return
+
+    console.log('[TextDelta] Processing delta:', delta.substring(0, 50) + '...')
+
+    this.updateMessage(event.message_id!, (message) => {
+      console.log('[TextDelta] Current blocks:', message.content_blocks.map(b => ({
+        id: b.content_id,
+        type: b.content_type,
+        has_phase: !!b.metadata?.phase,
+        has_type: !!(b.metadata as Record<string, unknown> | undefined)?.type,
+        is_placeholder: b.is_placeholder
+      })))
       
-      // Find the index of the last text content block
-      let lastTextBlockIndex = -1
-      for (let i = message.content_blocks.length - 1; i >= 0; i--) {
-        if (message.content_blocks[i].content_type === "text") {
-          lastTextBlockIndex = i
-          break
-        }
-      }
+      const lastTextIndex = findLastPureTextBlock(message.content_blocks)
+      console.log('[TextDelta] Last pure text block index:', lastTextIndex)
       
-      if (lastTextBlockIndex !== -1) {
-        // Append to existing text block - create new array and new block object
+      if (lastTextIndex !== -1) {
+        // 追加到现有文本块
         const updatedBlocks = [...message.content_blocks]
-        updatedBlocks[lastTextBlockIndex] = {
-          ...updatedBlocks[lastTextBlockIndex],
-          text: (updatedBlocks[lastTextBlockIndex].text || "") + delta
-        }
-        message.content_blocks = updatedBlocks
-        console.log(`[TextDelta] Appended to text block ${updatedBlocks[lastTextBlockIndex].content_id}:`, delta)
+        const block = { ...updatedBlocks[lastTextIndex] }
+        const oldLength = block.text?.length || 0
+        block.text = (block.text || '') + delta
+        block.updated_at = new Date().toISOString()
+        updatedBlocks[lastTextIndex] = block
+        
+        console.log(`[TextDelta] Appended to block ${block.content_id}, length: ${oldLength} -> ${block.text.length}`)
+        
+        return { ...message, content_blocks: updatedBlocks }
       } else {
-        // Create a new text block if none exists
-        const now = new Date().toISOString()
-        const newTextBlock: ContentBlock = {
-          content_id: `text_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          content_type: "text",
+        // 创建新的纯文本块
+        const newBlock: ContentBlock = {
+          content_id: generateContentId(),
+          content_type: 'text',
           text: delta,
-          sequence: message.content_blocks.length + 1,
+          sequence: message.content_blocks.length,
           is_placeholder: false,
-          created_at: now,
-          updated_at: now,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         }
-        message.content_blocks = [...message.content_blocks, newTextBlock]
-        console.log(`[TextDelta] Created new text block:`, newTextBlock.content_id)
+        
+        console.log(`[TextDelta] Created new text block ${newBlock.content_id}, sequence: ${newBlock.sequence}`)
+        console.log('[TextDelta] New block has NO metadata (pure text)')
+        
+        return {
+          ...message,
+          content_blocks: [...message.content_blocks, newBlock]
+        }
       }
-      
-      return message
     })
   }
 
   /**
-   * Handle content added events (text, images, videos, etc.)
+   * 处理 content_added 事件
+   * 添加新的内容块
    */
   private handleContentAdded(event: StreamEvent): void {
-    console.log("[ContentAdded] Event received:", {
-      event_id: event.event_id,
-      content_type: event.payload?.content_type,
-      has_metadata: !!event.payload?.metadata,
-      metadata_keys: event.payload?.metadata ? Object.keys(event.payload.metadata) : [],
-      payload_keys: event.payload ? Object.keys(event.payload) : []
+    if (!event.payload) return
+
+    console.log('[ContentAdded] Payload:', {
+      content_type: event.payload.content_type,
+      has_metadata: !!event.payload.metadata,
+      metadata: event.payload.metadata
     })
-    
-    // Log full metadata if present
-    if (event.payload?.metadata) {
-      console.log("[ContentAdded] Full metadata:", JSON.stringify(event.payload.metadata, null, 2))
-    } else {
-      console.warn("[ContentAdded] ⚠️ NO METADATA in payload - Agent components will not render!")
-    }
 
-    this.updateMessage(event.message_id, (message) => {
-      if (!event.payload) return message
+    this.updateMessage(event.message_id!, (message) => {
+      const newBlock = createContentBlockFromPayload(event.payload!)
       
-      const contentType = event.payload.content_type as "text" | "image" | "video" | "audio" | "file"
-      const now = new Date().toISOString()
-
-      // Use is_placeholder from payload if provided, otherwise determine from data presence
-      const hasData = event.payload.text || event.payload.image || event.payload.video || event.payload.audio || event.payload.file
-      const isPlaceholder = event.payload.is_placeholder !== undefined 
-        ? (event.payload.is_placeholder as boolean)
-        : !hasData
-
-      const newBlock: ContentBlock = {
-        content_id: event.payload.content_id as string,
-        content_type: contentType,
-        sequence: event.payload.sequence as number ?? message.content_blocks.length + 1,
-        is_placeholder: isPlaceholder,
-        created_at: now,
-        updated_at: now,
+      // 如果是占位符且有placeholder文本，设置到text字段
+      if (newBlock.is_placeholder && event.payload!.placeholder) {
+        newBlock.text = event.payload!.placeholder as string
       }
 
-      // Add task_id if provided (important for Agent workflows)
-      if (event.payload.task_id) {
-        newBlock.task_id = event.payload.task_id as string
-      }
+      // 添加并排序
+      const updatedBlocks = sortContentBlocks([...message.content_blocks, newBlock])
 
-      // Add metadata if provided (important for Agent-specific rendering)
-      if (event.payload.metadata) {
-        newBlock.metadata = event.payload.metadata as Record<string, unknown>
-        console.log("[ContentAdded] Metadata added:", newBlock.metadata)
-      }
-
-      // Add type-specific data if available
-      if (event.payload.text !== undefined) {
-        newBlock.text = event.payload.text as string
-      }
-      if (event.payload.image) {
-        newBlock.image = event.payload.image as ImageContent
-      }
-      if (event.payload.video) {
-        newBlock.video = event.payload.video as VideoContent
-      }
-      if (event.payload.audio) {
-        newBlock.audio = event.payload.audio as AudioContent
-      }
-      if (event.payload.file) {
-        newBlock.file = event.payload.file as FileContent
-      }
-
-      // If placeholder, store the placeholder text for display
-      if (isPlaceholder && event.payload.placeholder) {
-        newBlock.text = event.payload.placeholder as string
-      }
-
-      // Add the new block
-      message.content_blocks = [...message.content_blocks, newBlock]
-      
-      // Sort content blocks by sequence to maintain correct order
-      message.content_blocks = this.sortContentBlocks(message.content_blocks)
-      
-      console.log("[ContentAdded] Content block added and sorted:", newBlock, "Total blocks:", message.content_blocks.length)
-      
-      return message
+      return { ...message, content_blocks: updatedBlocks }
     })
   }
 
   /**
-   * Handle content updated events
+   * 处理 content_updated 事件
+   * 更新现有内容块
    */
   private handleContentUpdated(event: StreamEvent): void {
-    console.log("[ContentUpdated] Event received:", {
-      event_id: event.event_id,
-      content_id: event.payload?.content_id,
-      content_type: event.payload?.content_type,
-      has_metadata: !!event.payload?.metadata,
-      metadata_keys: event.payload?.metadata ? Object.keys(event.payload.metadata) : [],
-      payload_keys: event.payload ? Object.keys(event.payload) : []
-    })
-    
-    // Log full metadata if present
-    if (event.payload?.metadata) {
-      console.log("[ContentUpdated] Full metadata:", JSON.stringify(event.payload.metadata, null, 2))
-    }
+    if (!event.payload) return
 
-    this.updateMessage(event.message_id, (message) => {
-      if (!event.payload) return message
-      
-      const contentId = event.payload.content_id as string
-      const contentType = event.payload.content_type as string
-      
-      let blockIndex = message.content_blocks.findIndex(
-        (b) => b.content_id === contentId
-      )
+    const contentId = event.payload.content_id as string
+    if (!contentId) return
 
-      // If exact content_id not found, try to find placeholder of same type
+    this.updateMessage(event.message_id!, (message) => {
+      const blockIndex = message.content_blocks.findIndex(b => b.content_id === contentId)
+      
       if (blockIndex === -1) {
-        console.warn("[ContentUpdated] Exact content_id not found, looking for placeholder:", contentId)
-        blockIndex = message.content_blocks.findIndex(
-          (b) => b.is_placeholder && b.content_type === contentType
-        )
-        
-        if (blockIndex !== -1) {
-          console.log("[ContentUpdated] Found placeholder to update:", message.content_blocks[blockIndex].content_id)
-        }
+        console.warn(`[ContentUpdated] Block not found: ${contentId}`)
+        return message
       }
 
-      if (blockIndex !== -1) {
-        const updatedBlock = {
-          ...message.content_blocks[blockIndex],
-          content_id: contentId,  // Update to new content_id
-          is_placeholder: false,
-        }
+      const updatedBlocks = [...message.content_blocks]
+      const updatedBlock = { ...updatedBlocks[blockIndex] }
 
-        // Update sequence if provided
-        if (event.payload.sequence !== undefined) {
-          updatedBlock.sequence = event.payload.sequence as number
+      // 更新字段
+      updatedBlock.is_placeholder = false
+      updatedBlock.updated_at = new Date().toISOString()
+      
+      if (event.payload.sequence !== undefined) {
+        updatedBlock.sequence = event.payload.sequence as number
+      }
+      if (event.payload.task_id) {
+        updatedBlock.task_id = event.payload.task_id as string
+      }
+      if (event.payload.metadata) {
+        updatedBlock.metadata = {
+          ...updatedBlock.metadata,
+          ...(event.payload.metadata as Record<string, unknown>)
         }
-
-        // Update task_id if provided (important for Agent workflows)
-        if (event.payload.task_id !== undefined) {
-          updatedBlock.task_id = event.payload.task_id as string
-        }
-
-        // Update or merge metadata if provided (important for Agent-specific rendering)
-        if (event.payload.metadata) {
-          updatedBlock.metadata = {
-            ...updatedBlock.metadata,
-            ...(event.payload.metadata as Record<string, unknown>)
-          }
-          console.log("[ContentUpdated] Metadata updated:", updatedBlock.metadata)
-        }
-
-        // Add content type-specific data if provided
-        if (event.payload.text !== undefined) {
-          updatedBlock.text = event.payload.text as string
-          console.log("[ContentUpdated] Updated text data:", event.payload.text)
-        }
-        if (event.payload.image) {
-          updatedBlock.image = event.payload.image as typeof updatedBlock.image
-          console.log("[ContentUpdated] Updated image data:", event.payload.image)
-        }
-        if (event.payload.video) {
-          updatedBlock.video = event.payload.video as typeof updatedBlock.video
-          console.log("[ContentUpdated] Updated video data:", event.payload.video)
-        }
-        if (event.payload.audio) {
-          updatedBlock.audio = event.payload.audio as typeof updatedBlock.audio
-          console.log("[ContentUpdated] Updated audio data:", event.payload.audio)
-        }
-        if (event.payload.file) {
-          updatedBlock.file = event.payload.file as typeof updatedBlock.file
-          console.log("[ContentUpdated] Updated file data:", event.payload.file)
-        }
-
-        // Warn if no data provided
-        if (!event.payload.text && !event.payload.image && !event.payload.video && !event.payload.audio && !event.payload.file && !event.payload.metadata) {
-          console.warn("[ContentUpdated] No actual content data or metadata provided, content_id:", contentId)
-        }
-
-        message.content_blocks[blockIndex] = updatedBlock
-        
-        // Sort content blocks by sequence after update
-        message.content_blocks = this.sortContentBlocks(message.content_blocks)
-        
-        console.log("[ContentUpdated] Content block updated and sorted:", updatedBlock)
-      } else {
-        console.warn("[ContentUpdated] No matching content block found for:", contentId, contentType)
+      }
+      if (event.payload.text !== undefined) {
+        updatedBlock.text = event.payload.text as string
+      }
+      if (event.payload.image) {
+        updatedBlock.image = event.payload.image as ContentBlock['image']
+      }
+      if (event.payload.video) {
+        updatedBlock.video = event.payload.video as ContentBlock['video']
+      }
+      if (event.payload.audio) {
+        updatedBlock.audio = event.payload.audio as ContentBlock['audio']
+      }
+      if (event.payload.file) {
+        updatedBlock.file = event.payload.file as ContentBlock['file']
       }
 
-      return message
+      updatedBlocks[blockIndex] = updatedBlock
+
+      // 重新排序
+      const sortedBlocks = sortContentBlocks(updatedBlocks)
+
+      return { ...message, content_blocks: sortedBlocks }
     })
   }
 
   /**
-   * Handle task started events
+   * 处理 task_started 事件
    */
   private handleTaskStarted(event: StreamEvent): void {
-    console.log("[TaskStarted] Task started:", event.payload)
+    if (!event.payload) return
 
-    this.updateMessage(event.message_id, (message) => {
-      if (!event.payload) return message
-      
-      const payload = event.payload;
-      message.pending_tasks = {
-        ...message.pending_tasks,
-        [payload.task_id as string]: {
-          task_id: payload.task_id as string,
-          status: typeof payload.status === 'string' ? payload.status : "pending",
-          progress: typeof payload.progress === 'number' ? payload.progress : 0,
-          task_type: typeof payload.task_type === 'string' ? payload.task_type : undefined,
-          tool_name: typeof payload.tool_name === 'string' ? payload.tool_name : undefined,
-          tool_args: payload.tool_args && typeof payload.tool_args === 'object' ? payload.tool_args as Record<string, unknown> : undefined,
-          display_text: typeof payload.display_text === 'string' ? payload.display_text : undefined,
-        }
+    this.updateMessage(event.message_id!, (message) => {
+      const taskId = event.payload!.task_id as string
+      const task: PendingTask = {
+        task_id: taskId,
+        status: (event.payload!.status as string) || 'pending',
+        progress: (event.payload!.progress as number) || 0,
+        task_type: event.payload!.task_type as string,
+        tool_name: event.payload!.tool_name as string,
+        tool_args: event.payload!.tool_args as Record<string, unknown>,
+        display_text: event.payload!.display_text as string,
       }
-      return message
+
+      return {
+        ...message,
+        pending_tasks: { ...message.pending_tasks, [taskId]: task }
+      }
     })
   }
 
   /**
-   * Handle task progress events
+   * 处理 task_progress 事件
    */
   private handleTaskProgress(event: StreamEvent): void {
-    console.log("[TaskProgress] Task progress:", event.payload)
+    if (!event.payload) return
 
-    this.updateMessage(event.message_id, (message) => {
-      if (!event.payload) return message
-      
-      const taskId = event.payload.task_id as string
-      if (message.pending_tasks[taskId]) {
-        message.pending_tasks = {
-          ...message.pending_tasks,
-          [taskId]: {
-            ...message.pending_tasks[taskId],
-            progress: typeof event.payload.progress === 'number' ? event.payload.progress : undefined,
-            status: typeof event.payload.status === 'string' ? event.payload.status : undefined,
-          }
-        }
+    const taskId = event.payload.task_id as string
+    if (!taskId) return
+
+    this.updateMessage(event.message_id!, (message) => {
+      const task = message.pending_tasks[taskId]
+      if (!task) return message
+
+      const updatedTask = { ...task }
+      if (event.payload!.progress !== undefined) {
+        updatedTask.progress = event.payload!.progress as number
       }
-      return message
+      if (event.payload!.status) {
+        updatedTask.status = event.payload!.status as string
+      }
+
+      return {
+        ...message,
+        pending_tasks: { ...message.pending_tasks, [taskId]: updatedTask }
+      }
     })
   }
 
   /**
-   * Handle task completed/failed events
+   * 处理 task_completed 事件
    */
   private handleTaskCompleted(event: StreamEvent): void {
-    console.log("[TaskCompleted] Task completed/failed:", event.payload)
+    if (!event.payload) return
 
-    this.updateMessage(event.message_id, (message) => {
-      if (!event.payload) return message
-      
-      const completedTaskId = event.payload.task_id as string
+    const taskId = event.payload.task_id as string
+    if (!taskId) return
+
+    this.updateMessage(event.message_id!, (message) => {
       const newPendingTasks = { ...message.pending_tasks }
-      delete newPendingTasks[completedTaskId]
-      message.pending_tasks = newPendingTasks
-      
-      // Note: We don't remove placeholders here because content_updated 
-      // event will handle updating the placeholder to actual content
-      // This ensures proper replacement without content loss
-      
-      return message
+      delete newPendingTasks[taskId]
+
+      return {
+        ...message,
+        pending_tasks: newPendingTasks
+      }
     })
   }
 
   /**
-   * Handle error events
-   * This only marks the specific message as failed, not the entire session
+   * 处理 task_failed 事件
    */
-  private handleError(event: StreamEvent): void {
-    console.error("[Error] Message processing failed for message:", event.message_id)
-    console.error("[Error] Payload:", event.payload)
-
+  private handleTaskFailed(event: StreamEvent): void {
     if (!event.payload) return
 
-    const payload = event.payload as unknown as ErrorPayload
-    
-    // Ensure errorMessage is always a string
-    let errorMessage: string
-    if (typeof payload.error === 'string') {
-      errorMessage = payload.error
-    } else if (payload.error && typeof payload.error === 'object') {
-      // If error is an object, try to extract message
-      const errorObj = payload.error as { message?: string };
-      errorMessage = errorObj.message || JSON.stringify(payload.error)
-    } else {
-      errorMessage = "Message processing failed"
-    }
-    
-    const errorDetails = payload.details
+    const taskId = event.payload.task_id as string
+    if (!taskId) return
 
-    // Log error details for debugging
-    console.error("[Error] Error message:", errorMessage)
-    if (errorDetails) {
-      console.error("[Error] Error details:", errorDetails)
-      if (errorDetails.traceback) {
-        console.error("[Error] Traceback:", errorDetails.traceback)
+    this.updateMessage(event.message_id!, (message) => {
+      const newPendingTasks = { ...message.pending_tasks }
+      delete newPendingTasks[taskId]
+
+      return {
+        ...message,
+        pending_tasks: newPendingTasks
       }
-    }
-
-    // Update only this specific message to mark as failed
-    this.updateMessage(event.message_id, (message) => {
-      message.is_complete = true
-      message.pending_tasks = {}
-      
-      // Add error information to message metadata
-      message.metadata = {
-        ...message.metadata,
-        error: errorMessage,
-        error_details: errorDetails,
-        failed_at: new Date().toISOString(),
-      }
-      
-      return message
-    })
-
-    // Note: We don't set global error state here because this is just 
-    // a single message failure, not a system-wide error
-  }
-
-  /**
-   * Handle message end events
-   */
-  private handleMessageEnd(event: StreamEvent): void {
-    console.log("[MessageEnd] Message ended")
-
-    this.updateMessage(event.message_id, (message) => {
-      // Only update if not already complete (avoid duplicate processing)
-      if (!message.is_complete) {
-        message.is_complete = true
-        message.pending_tasks = {}
-      }
-      return message
     })
   }
 
   /**
-   * Handle tool-related events
+   * 处理 tool_call 事件
    */
-  private handleToolEvent(event: StreamEvent): void {
-    console.log("[ToolEvent] Tool event:", event.event_type, event.payload)
-
+  private handleToolCall(event: StreamEvent): void {
     if (!event.payload) return
-    
-    let toolName: string
-    let status: string
-    
-    if (event.event_type === "tool_call") {
-      const payload = event.payload as unknown as ToolCallPayload
-      toolName = payload.tool_name
-      status = "calling"
-      console.log(`[ToolCall] Calling tool: ${toolName} with args:`, payload.tool_args)
-    } else if (event.event_type === "tool_result") {
-      const payload = event.payload as unknown as ToolResultPayload
-      toolName = payload.tool_name
-      status = payload.success ? "success" : "failed"
-      console.log(`[ToolResult] Tool ${toolName} ${status}:`, payload.result)
-    } else {
-      // Fallback for other tool-related events
-      toolName = (event.payload.tool_name || event.payload.tool || event.payload.name) as string
-      status = (event.payload.status || event.event_type) as string
-    }
+
+    const toolName = event.payload.tool_name as string
+    this.setToolCallState({
+      toolName,
+      status: 'calling'
+    })
+  }
+
+  /**
+   * 处理 tool_result 事件
+   */
+  private handleToolResult(event: StreamEvent): void {
+    if (!event.payload) return
+
+    const toolName = event.payload.tool_name as string
+    const success = event.payload.success as boolean
 
     this.setToolCallState({
       toolName,
-      status
+      status: success ? 'success' : 'failed'
     })
+
+    // 清除状态
+    setTimeout(() => this.setToolCallState(null), 2000)
   }
 
   /**
-   * Check if event is tool-related
+   * 处理 error 事件
    */
-  private isToolEvent(eventType: string): boolean {
-    const lowerType = eventType.toLowerCase()
-    return lowerType.includes("tool") || lowerType.includes("agent")
+  private handleError(event: StreamEvent): void {
+    if (!event.payload) return
+
+    const errorMessage = typeof event.payload.error === 'string' 
+      ? event.payload.error 
+      : 'Message processing failed'
+
+    console.error('[StreamEvent] Error:', errorMessage, event.payload.details)
+
+    this.updateMessage(event.message_id!, (message) => ({
+      ...message,
+      is_complete: true,
+      pending_tasks: {},
+      metadata: {
+        ...message.metadata,
+        error: errorMessage,
+        error_details: event.payload!.details,
+        failed_at: new Date().toISOString(),
+      }
+    }))
   }
 
   /**
-   * Helper method to update a specific message
+   * 处理 message_end 事件
+   * 接收后端发送的最终清洗后的消息状态，完全替换本地状态
    */
-  private updateMessage(messageId: string, updater: (message: Message) => Message): void {
-    this.setMessages((prev) => {
-      const messageIndex = prev.findIndex((m) => m.message_id === messageId)
-
-      if (messageIndex === -1) {
-        console.warn(`[StreamEventHandler] Message not found: ${messageId}`)
-        return prev
+  private handleMessageEnd(event: StreamEvent): void {
+    this.updateMessage(event.message_id!, (message) => {
+      // 如果后端发送了完整的最终消息对象（包含清洗后的 content_blocks）
+      if (event.payload?.message) {
+        console.log('[StreamEvent] Syncing final message state from backend')
+        const finalMessage = event.payload.message as Message
+        return {
+          ...finalMessage,
+          // 确保前端状态标记为完成
+          is_complete: true,
+          pending_tasks: {} 
+        }
       }
 
-      const updatedMessages = [...prev]
-      const message = { ...updatedMessages[messageIndex] }
-      const updatedMessage = updater(message)
-      updatedMessages[messageIndex] = updatedMessage
+      // 降级处理：仅标记完成并清理任务
+      if (message.is_complete) return message
 
-      return updatedMessages
+      return {
+        ...message,
+        is_complete: true,
+        pending_tasks: {}
+      }
     })
   }
 
   /**
-   * Update the messages reference (for new handler instance)
+   * 更新指定消息的辅助函数
+   */
+  private updateMessage(
+    messageId: string,
+    updater: (message: Message) => Message
+  ): void {
+    this.setMessages((prevMessages) => {
+      const messageIndex = prevMessages.findIndex(m => m.message_id === messageId)
+
+      if (messageIndex === -1) {
+        console.warn(`[StreamEvent] Message not found: ${messageId}`)
+        return prevMessages
+      }
+
+      const newMessages = [...prevMessages]
+      const oldMessage = newMessages[messageIndex]
+      const updatedMessage = updater({ ...oldMessage })
+      
+      // 只有真正改变时才更新
+      if (oldMessage !== updatedMessage) {
+        newMessages[messageIndex] = updatedMessage
+        return newMessages
+      }
+
+      return prevMessages
+    })
+  }
+
+  /**
+   * 更新messages引用（用于新实例）
    */
   updateMessages(messages: Message[]): void {
     this.messages = messages
   }
-
-  /**
-   * Sort content blocks by sequence number
-   * Blocks without sequence are placed at the end
-   */
-  private sortContentBlocks(blocks: ContentBlock[]): ContentBlock[] {
-    return [...blocks].sort((a, b) => {
-      // If both have sequence, sort by sequence
-      if (a.sequence !== undefined && b.sequence !== undefined) {
-        return a.sequence - b.sequence
-      }
-      // If only a has sequence, a comes first
-      if (a.sequence !== undefined) {
-        return -1
-      }
-      // If only b has sequence, b comes first
-      if (b.sequence !== undefined) {
-        return 1
-      }
-      // If neither has sequence, maintain relative order (stable sort)
-      return 0
-    })
-  }
 }
-

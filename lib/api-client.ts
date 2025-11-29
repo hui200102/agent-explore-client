@@ -20,9 +20,10 @@ export interface Session {
   session_id: string;
   user_id?: string | null;
   status: "active" | "inactive" | "completed";
+  current_message_id?: string | null;  // 当前消息ID
   metadata?: Record<string, unknown>;
   created_at: string;
-  updated_at: string;
+  updated_at?: string | null;
 }
 
 export interface ListSessionsResponse {
@@ -132,6 +133,8 @@ export interface SendMessageRequest {
   content_blocks: ContentBlockInput[];
   role?: "user" | "assistant" | "system";
   parent_message_id?: string;
+  include_history?: boolean;  // 是否包含历史消息，默认false
+  max_history_messages?: number;  // 最大历史消息数，默认10
   metadata?: Record<string, unknown>;
 }
 
@@ -139,6 +142,7 @@ export interface SendMessageResponse {
   message_id: string;
   session_id: string;
   assistant_message_id?: string;
+  task_id?: string;  // 后台任务ID
   message: Message;
 }
 
@@ -149,8 +153,11 @@ export interface Message {
   content_blocks: ContentBlock[];
   pending_tasks: Record<string, PendingTask>;
   is_complete: boolean;
+  sequence_counter: number;  // 事件序列号
+  content_sequence: number;  // 内容序列号
   parent_message_id?: string | null;
   metadata?: Record<string, unknown>;
+  summary?: string | null;  // 消息摘要
   created_at: string;
   updated_at: string;
 }
@@ -201,7 +208,7 @@ export interface DeleteMessagesResponse {
 
 export interface ContentBlock {
   content_id: string;
-  content_type: "text" | "image" | "video" | "audio" | "file" | "code" | "markdown" | "html" | "json" | "thinking";
+  content_type: "text" | "image" | "video" | "audio" | "file" | "code" | "markdown" | "html" | "json" | "thinking" | "plan" | "execution_status" | "evaluation_result";
   sequence: number;
   is_placeholder: boolean;
   text?: string;
@@ -318,12 +325,15 @@ export type StreamEventType =
 export interface StreamEvent {
   event_id: string;
   event_type: StreamEventType;
-  message_id: string;
-  session_id: string;
-  sequence: number;
-  payload?: Record<string, unknown>;
-  metadata?: Record<string, unknown>;
+  channel: string;  // 通道名称，如 "message:{message_id}"
+  payload: Record<string, unknown>;
+  metadata?: Record<string, unknown>;  // 包含 message_id, session_id, sequence
   timestamp: string;
+  sequence: number;  // 事件序列号
+  
+  // 便捷访问器（从 metadata 中提取）
+  message_id?: string;  // 从 metadata.message_id 提取
+  session_id?: string;  // 从 metadata.session_id 提取
 }
 
 // ============= Stream Event Payload Types =============
@@ -403,6 +413,30 @@ export interface ErrorPayload {
   };
 }
 
+// ============= Task Management Interfaces =============
+
+export type BackgroundTaskStatus = "pending" | "running" | "completed" | "failed" | "cancelled" | "timeout";
+
+export interface TaskResult {
+  task_id: string;
+  status: BackgroundTaskStatus;
+  result?: unknown;
+  error?: string;
+  started_at: string;
+  completed_at?: string;
+  duration?: number;  // 秒
+}
+
+export interface ListTasksResponse {
+  tasks: Record<string, TaskResult>;
+  count: number;
+}
+
+export interface CancelTaskResponse {
+  task_id: string;
+  status: string;
+}
+
 // ============= File Upload Interfaces =============
 
 export interface UploadRequest {
@@ -444,9 +478,44 @@ export interface AnalyzeAssetsResponse {
 
 // ============= Health Check Interface =============
 
+export interface TaskStatistics {
+  total_created: number;
+  total_completed: number;
+  total_failed: number;
+  total_cancelled: number;
+  active_tasks: number;
+  avg_completion_time?: number;
+}
+
+export interface PushStatistics {
+  total_connections: number;
+  active_connections: number;
+  by_channel_type?: Record<string, number>;
+}
+
 export interface HealthResponse {
   status: string;
   redis: string;
+  mongodb?: string;
+  components?: {
+    event_bus?: {
+      status: string;
+    };
+    task_manager?: {
+      status: string;
+      statistics?: TaskStatistics;
+    };
+    push_manager?: {
+      status: string;
+      statistics?: PushStatistics;
+    };
+  };
+  timestamp: string;
+}
+
+export interface MetricsResponse {
+  tasks: TaskStatistics;
+  push: PushStatistics;
   timestamp: string;
 }
 
@@ -728,6 +797,49 @@ export class ApiClient {
     return response.json();
   }
 
+  // ============= Task Management =============
+
+  /**
+   * Get task status
+   * GET /api/v1/tasks/{task_id}
+   */
+  async getTaskStatus(taskId: string): Promise<TaskResult> {
+    const response = await fetch(`${this.agentBaseUrl}/tasks/${taskId}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to get task status" }));
+      throw new Error(error.detail || "Failed to get task status");
+    }
+    return response.json();
+  }
+
+  /**
+   * Cancel a task
+   * POST /api/v1/tasks/{task_id}/cancel
+   */
+  async cancelTask(taskId: string): Promise<CancelTaskResponse> {
+    const response = await fetch(`${this.agentBaseUrl}/tasks/${taskId}/cancel`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to cancel task" }));
+      throw new Error(error.detail || "Failed to cancel task");
+    }
+    return response.json();
+  }
+
+  /**
+   * List all tasks
+   * GET /api/v1/tasks
+   */
+  async listTasks(): Promise<ListTasksResponse> {
+    const response = await fetch(`${this.agentBaseUrl}/tasks`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to list tasks" }));
+      throw new Error(error.detail || "Failed to list tasks");
+    }
+    return response.json();
+  }
+
   // ============= SSE Stream =============
 
   /**
@@ -776,10 +888,37 @@ export class ApiClient {
 
       const handleEvent = (event: MessageEvent) => {
         try {
-          if (event.data === 'ping') {
+          // Check if data exists and is not empty
+          if (!event.data || event.data === '') {
+            console.debug('Received event without data, ignoring');
             return;
           }
-          const data: StreamEvent = JSON.parse(event.data);
+          
+          // Handle ping/pong heartbeat (plain text, not JSON)
+          if (event.data === 'ping' || event.data === 'pong') {
+            return;
+          }
+          
+          // Try to parse as JSON
+          let data: StreamEvent;
+          try {
+            data = JSON.parse(event.data);
+          } catch (parseError) {
+            console.warn('Failed to parse event data as JSON:', event.data, parseError);
+            return;
+          }
+          
+          // Validate that we have a proper StreamEvent
+          if (!data.event_type || !data.event_id) {
+            console.warn('Invalid StreamEvent format:', data);
+            return;
+          }
+          
+          // Extract message_id and session_id from metadata for convenience
+          if (data.metadata) {
+            data.message_id = data.metadata.message_id as string;
+            data.session_id = data.metadata.session_id as string;
+          }
           
           // Update last event ID for reconnection
           if (data.event_id) {
@@ -806,7 +945,7 @@ export class ApiClient {
             }, 100);
           }
         } catch (error) {
-          console.error(`Failed to parse event:`, error);
+          console.error('Error in handleEvent:', error, 'event.data:', event.data);
         }
       };
 
@@ -973,16 +1112,45 @@ export class ApiClient {
     return response.json();
   }
 
-  // ============= Health Check =============
+  // ============= Health Check & Metrics =============
 
   /**
    * Check service health
    * GET /api/v1/health
    */
   async checkHealth(): Promise<HealthResponse> {
-    const response = await fetch(`${this.backendBaseUrl}/health`);
+    const response = await fetch(`${this.agentBaseUrl}/health`);
     if (!response.ok) {
       throw new Error("Health check failed");
+    }
+    return response.json();
+  }
+
+  /**
+   * Get system metrics
+   * GET /api/v1/metrics
+   */
+  async getMetrics(): Promise<MetricsResponse> {
+    const response = await fetch(`${this.agentBaseUrl}/metrics`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to get metrics" }));
+      throw new Error(error.detail || "Failed to get metrics");
+    }
+    return response.json();
+  }
+
+  /**
+   * Get comprehensive statistics
+   * GET /api/v1/statistics
+   */
+  async getStatistics(userId?: string): Promise<unknown> {
+    const url = userId
+      ? `${this.agentBaseUrl}/statistics?user_id=${userId}`
+      : `${this.agentBaseUrl}/statistics`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to get statistics" }));
+      throw new Error(error.detail || "Failed to get statistics");
     }
     return response.json();
   }

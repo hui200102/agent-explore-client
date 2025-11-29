@@ -1,7 +1,7 @@
 import { Target, Zap, Search, Brain, CheckCircle2, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-type AgentPhase = "planning" | "execution" | "evaluation" | "reflection" | "success" | "error"
+export type AgentPhase = "planning" | "execution" | "evaluation" | "reflection" | "success" | "error"
 
 interface AgentStatusBarProps {
   phase: AgentPhase

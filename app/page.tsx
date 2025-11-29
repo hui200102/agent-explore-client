@@ -6,7 +6,8 @@ import { SessionSidebar } from "@/components/chat/session-sidebar"
 import { useSessionList } from "@/hooks/use-session-list"
 import { apiClient } from "@/lib/api-client"
 import { SessionStorage } from "@/lib/session-storage"
-import { Loader2 } from "lucide-react"
+import { Loader2, BarChart3 } from "lucide-react"
+import Link from "next/link"
 
 export default function Home() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
@@ -148,6 +149,17 @@ export default function Home() {
 
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col overflow-hidden border-l border-zinc-200 dark:border-zinc-800">
+          {/* Top Navigation Bar */}
+          <div className="flex items-center justify-end px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+            <Link
+              href="/stats"
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-primary dark:hover:text-primary transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800"
+            >
+              <BarChart3 className="h-4 w-4" />
+              Statistics
+            </Link>
+          </div>
+
           <ChatContainer 
             sessionId={currentSessionId}
             onSessionReady={handleSessionReady}

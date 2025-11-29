@@ -92,9 +92,13 @@ export function useMessageHistory(options?: UseMessageHistoryOptions): UseMessag
       console.log("[useMessageHistory] Updating message:", message.message_id)
       
       // Optimistically update local state
-      setMessages((prev) => 
-        prev.map(m => m.message_id === message.message_id ? message : m)
-      )
+      setMessages((prev) => {
+        const nextMessages = prev.map(m => m.message_id === message.message_id ? message : m)
+        // 如果是 message_end 触发的完全替换（通常内容变短了，因为去除了中间过程），
+        // React 的 reconciliation 有时可能如果不强制刷新，会复用组件状态。
+        // 但只要 message 对象引用变了，MessageBubble 就会重渲染。
+        return nextMessages
+      })
       
       // Update storage (async, non-blocking)
       await history.updateMessage(message)
