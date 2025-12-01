@@ -415,26 +415,28 @@ export class StreamEventHandler {
       const state = this.getIntegrityState(messageId)
       
       // 校验增量长度
-      const deltaContent = delta.content as string
-      if (deltaContent.length !== checksum.delta_length) {
+      const deltaContent = delta.content
+      if (typeof deltaContent === 'string' && deltaContent.length !== checksum.delta_length) {
         console.error('[DataIntegrity] Delta length mismatch:', {
           expected: checksum.delta_length,
           actual: deltaContent.length
         })
       }
       
-      // 更新预期的总长度
-      state.totalTextLength += checksum.delta_length
-      
-      // 校验总长度（与后端一致）
-      if (state.totalTextLength !== checksum.total_length) {
-        console.warn('[DataIntegrity] Total length mismatch:', {
-          frontend: state.totalTextLength,
-          backend: checksum.total_length,
-          diff: checksum.total_length - state.totalTextLength
-        })
-        // 同步到后端长度
-        state.totalTextLength = checksum.total_length
+      if (typeof deltaContent === 'string') {
+        // 更新预期的总长度
+        state.totalTextLength += checksum.delta_length
+        
+        // 校验总长度（与后端一致）
+        if (state.totalTextLength !== checksum.total_length) {
+          console.warn('[DataIntegrity] Total length mismatch:', {
+            frontend: state.totalTextLength,
+            backend: checksum.total_length,
+            diff: checksum.total_length - state.totalTextLength
+          })
+          // 同步到后端长度
+          state.totalTextLength = checksum.total_length
+        }
       }
     }
 
