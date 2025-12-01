@@ -169,7 +169,10 @@ export function ChatContainer({
             role: "assistant",
             content_blocks: [],
             pending_tasks: {},
+            completed_tasks: [],  // 新增：已完成任务列表
             is_complete: false,
+            sequence_counter: 0,  // 新增：事件序列号
+            content_sequence: 0,  // 新增：内容序列号
             parent_message_id: response.message_id,
             metadata: {},
             created_at: new Date().toISOString(),

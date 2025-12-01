@@ -24,6 +24,7 @@ interface UseMessageHistoryReturn {
     by_role: Record<string, { count: number; completed: number }>;
   }>
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
+  getMessage: (messageId: string) => Message | undefined
 }
 
 /**
@@ -97,6 +98,7 @@ export function useMessageHistory(options?: UseMessageHistoryOptions): UseMessag
         // 如果是 message_end 触发的完全替换（通常内容变短了，因为去除了中间过程），
         // React 的 reconciliation 有时可能如果不强制刷新，会复用组件状态。
         // 但只要 message 对象引用变了，MessageBubble 就会重渲染。
+        // 注意：如果 message_id 相同，我们在这里直接替换整个消息对象
         return nextMessages
       })
       
@@ -108,6 +110,13 @@ export function useMessageHistory(options?: UseMessageHistoryOptions): UseMessag
       throw err
     }
   }, [history])
+
+  /**
+   * Find a message by ID
+   */
+  const getMessage = useCallback((messageId: string): Message | undefined => {
+    return messages.find(m => m.message_id === messageId)
+  }, [messages])
 
   /**
    * Delete a message
@@ -187,6 +196,7 @@ export function useMessageHistory(options?: UseMessageHistoryOptions): UseMessag
     searchMessages,
     getStatistics,
     setMessages,
+    getMessage,
   }
 }
 

@@ -11,6 +11,7 @@ import { Image as ImageIcon, Video, Music, FileText, Loader2, ClipboardList } fr
 import { MarkdownContent } from "./markdown-content"
 import { PlanCard } from "./agent/plan-card"
 import { EvaluationResult } from "./agent/evaluation-result"
+import { AgentProgressBar } from "./agent/progress-bar"
 
 // ==================== 占位符 ====================
 
@@ -216,9 +217,18 @@ export function PlanBlock({ block, pendingTasks = {} }: { block: ContentBlock, p
 // ==================== Execution Status Block ====================
 
 export function ExecutionStatusBlock({ block }: { block: ContentBlock }) {
-  // 移除前端状态显示，但保留参数以符合接口
-  if (block) return null
-  return null
+  const meta = block.metadata as Record<string, unknown> | undefined
+  const step = (meta?.step as number) || 0
+  const total = (meta?.total as number) || 1
+  const text = block.text || "Processing..."
+
+  return (
+    <AgentProgressBar 
+      current={step} 
+      total={total} 
+      text={text} 
+    />
+  )
 }
 
 // ==================== Evaluation Result Block ====================

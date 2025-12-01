@@ -151,7 +151,8 @@ export interface Message {
   session_id: string;
   role: "user" | "assistant" | "system" | "agent" | "tool";
   content_blocks: ContentBlock[];
-  pending_tasks: Record<string, PendingTask>;
+  pending_tasks: Record<string, PendingTask>;  // 进行中的任务
+  completed_tasks?: CompletedTask[];  // 已完成的任务历史（OpenAI 风格优化）
   is_complete: boolean;
   sequence_counter: number;  // 事件序列号
   content_sequence: number;  // 内容序列号
@@ -170,6 +171,17 @@ export interface PendingTask {
   status?: string;
   progress?: number;
   task_type?: string;
+  [key: string]: unknown;
+}
+
+export interface CompletedTask {
+  task_id: string;
+  tool_name?: string;
+  tool_args?: Record<string, unknown>;
+  status: "completed" | "failed" | "cancelled";
+  completed_at: string;
+  interrupted?: boolean;  // 是否被中断
+  error?: string;  // 失败原因
   [key: string]: unknown;
 }
 
@@ -307,18 +319,12 @@ export interface FileContent {
 
 export type StreamEventType =
   | "message_start"
-  | "message_end"
-  | "text_delta"
-  | "text_complete"
-  | "content_added"
-  | "content_updated"
-  | "content_removed"
+  | "message_delta"
+  | "message_stop"
   | "task_started"
   | "task_progress"
   | "task_completed"
   | "task_failed"
-  | "tool_call"
-  | "tool_result"
   | "error"
   | "ping";
 
@@ -338,72 +344,33 @@ export interface StreamEvent {
 
 // ============= Stream Event Payload Types =============
 
-export interface TextDeltaPayload {
-  delta: string;
-}
-
-export interface ContentAddedPayload {
-  content_id: string;
+/**
+ * message_delta 事件的 payload
+ */
+export interface MessageDeltaPayload {
+  delta: {
+    content: string | Record<string, unknown>;
+    index?: number;
+    tool_calls?: unknown[];
+  };
   content_type: string;
-  sequence: number;
-  is_placeholder: boolean;
-  placeholder?: string;
-  task_id?: string;
-  text?: string;
+  checksum?: {
+    total_length: number;
+    delta_length: number;
+  };
 }
 
-export interface ContentUpdatedPayload {
-  content_id: string;
-  content_type: string;
-  sequence: number;
-  task_id?: string;
-  image?: ImageContent;
-  video?: VideoContent;
-  audio?: AudioContent;
-  file?: FileContent;
-  text?: string;
+/**
+ * message_stop 事件的 payload
+ */
+export interface MessageStopPayload {
+  stop_reason: string;
+  message?: Message;
 }
 
-export interface TaskStartedPayload {
-  task_id: string;
-  task_type: string;
-  status: string;
-  progress: number;
-  started_at: string;
-}
-
-export interface TaskProgressPayload {
-  task_id: string;
-  status: string;
-  progress: number;
-  updated_at: string;
-}
-
-export interface TaskCompletedPayload {
-  task_id: string;
-  status: string;
-  progress: number;
-  content_id?: string;
-}
-
-export interface TaskFailedPayload {
-  task_id: string;
-  status: string;
-  error: string;
-}
-
-export interface ToolCallPayload {
-  tool_call_id: string;
-  tool_name: string;
-  tool_args: Record<string, unknown>;
-}
-
-export interface ToolResultPayload {
-  tool_name: string;
-  result: unknown;
-  success: boolean;
-}
-
+/**
+ * error 事件的 payload
+ */
 export interface ErrorPayload {
   error: string;
   details?: {
@@ -412,6 +379,9 @@ export interface ErrorPayload {
     [key: string]: unknown;
   };
 }
+
+// 旧的 payload 类型已移除，如果需要请参考 git 历史
+
 
 // ============= Task Management Interfaces =============
 
@@ -846,8 +816,9 @@ export class ApiClient {
    * Subscribe to message stream via SSE with auto-reconnect
    * GET /api/v1/sessions/{session_id}/messages/{message_id}/stream
    * 
-   * Events: text_delta, content_added, content_updated, task_started, 
-   *         task_progress, task_completed, task_failed, message_end
+   * Events: message_start, message_delta, message_stop,
+   *         task_started, task_progress, task_completed, task_failed,
+   *         error, ping
    */
   subscribeToStream(
     sessionId: string,
@@ -873,17 +844,20 @@ export class ApiClient {
 
       // Handle different event types
       const eventTypes = [
-        'text_delta',
-        'content_added',
-        'content_updated',
-        'tool_call',
-        'tool_result',
+        // 核心事件（OpenAI 风格）
+        'message_start',
+        'message_delta',
+        'message_stop',
+        
+        // 任务事件
         'task_started',
         'task_progress',
         'task_completed',
         'task_failed',
+        
+        // 其他
         'error',
-        'message_end'
+        'ping'
       ];
 
       const handleEvent = (event: MessageEvent) => {
@@ -929,7 +903,7 @@ export class ApiClient {
           reconnectAttempts = 0;
           
           // Track message_end
-          if (data.event_type === 'message_end') {
+          if (data.event_type === 'message_stop') {
             messageEnded = true;
             console.log("Message completed, connection will close");
           }

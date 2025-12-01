@@ -14,9 +14,7 @@ import type { Message, ContentBlock, PendingTask } from "@/lib/api-client"
 import { User, Bot, AlertCircle } from "lucide-react"
 
 // Agent Components
-import { AgentProgressBar } from "@/components/chat/agent/progress-bar"
 import { ToolPlaceholder } from "@/components/chat/agent/tool-placeholder"
-import { InsightBox } from "@/components/chat/agent/insight-box"
 
 // Content renderers
 import { 
@@ -53,8 +51,6 @@ function categorizeBlocks(blocks: ContentBlock[]): {
   const contentBlocks: ContentBlock[] = []
 
   for (const block of blocks) {
-    const meta = block.metadata as Record<string, unknown> | undefined
-    
     // 新的分类逻辑：基于 ContentType
     // 1. 明确的Agent类型
     const isExplicitAgentBlock = [
@@ -64,8 +60,8 @@ function categorizeBlocks(blocks: ContentBlock[]): {
       "thinking"
     ].includes(block.content_type)
 
-    // 2. 旧的分类逻辑（兼容性）：有 metadata.phase 且有 metadata.type
-    const isLegacyAgentBlock = !isExplicitAgentBlock && meta?.phase && meta?.type
+    // 2. 旧的分类逻辑（已移除）
+    const isLegacyAgentBlock = false
     
     if (isExplicitAgentBlock || isLegacyAgentBlock) {
       // Agent内部处理块
@@ -106,7 +102,7 @@ function extractError(message: Message): { hasError: boolean; errorMessage?: str
 export function MessageBubble({ message }: MessageBubbleProps) {
   const isAssistant = message.role === "assistant"
   const hasPendingTasks = Object.keys(message.pending_tasks).length > 0
-  
+  console.log('message', message)
   // 提取错误
   const { hasError, errorMessage } = extractError(message)
 
@@ -115,7 +111,11 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   const sortedBlocks = [...message.content_blocks].sort((a, b) => 
     (a.sequence || 0) - (b.sequence || 0)
   )
+  console.log('sortedBlocks', sortedBlocks)
   const { agentBlocks, contentBlocks } = categorizeBlocks(sortedBlocks)
+
+  console.log('agentBlocks', agentBlocks)
+  console.log('contentBlocks', contentBlocks)
   
   // 🔍 调试日志 - 检查文本块分类
   if (isAssistant && message.content_blocks.length > 0) {
@@ -236,81 +236,24 @@ function AgentContentRenderer({
   if (block.content_type === "plan") {
     return <PlanBlock block={block} pendingTasks={pendingTasks} />
   }
-  // 移除 ExecutionStatusBlock 渲染
   if (block.content_type === "execution_status") {
-    return null
+    return <ExecutionStatusBlock block={block} />
   }
   if (block.content_type === "evaluation_result") {
     return <EvaluationResultBlock block={block} />
   }
 
-  // 兼容旧的 metadata 渲染逻辑
-  const meta = block.metadata as Record<string, unknown> | undefined
-  if (!meta || !('phase' in meta)) return null
+  // 兼容旧的 metadata 渲染逻辑 (已废弃)
+  // const meta = block.metadata as Record<string, unknown> | undefined
+  // if (!meta || !('phase' in meta)) return null
 
-  const phase = meta.phase as string
-  const type = meta.type as string
+  // const phase = meta.phase as string
+  // const type = meta.type as string
 
-  // Planning阶段
-  if (phase === "planning") {
-    if (type === "status") {
-      // 移除状态渲染
-      return null
-    }
-    // Legacy Plan Handling
-    if (type === "plan" && 'steps' in meta) {
-       return <PlanBlock block={block} pendingTasks={pendingTasks} />
-    }
-  }
-
-  // Execution阶段
-  if (phase === "execution") {
-    if (type === "status") {
-       // 移除状态渲染
-       return null
-    }
-    if (type === "step_progress") {
-      const step = ('step' in meta && typeof meta.step === 'number') ? meta.step : 0
-      const total = ('total' in meta && typeof meta.total === 'number') ? meta.total : 1
-      return (
-        <AgentProgressBar 
-          current={step} 
-          total={total} 
-          text={block.text || "Processing..."} 
-        />
-      )
-    }
-  }
-
-  // Evaluation阶段
-  if (phase === "evaluation") {
-    if (type === "status") {
-      // 移除状态渲染
-      return null
-    }
-    if (type === "result") {
-       return <EvaluationResultBlock block={block} />
-    }
-  }
-
-  // Reflection阶段
-  if (phase === "reflection") {
-    if (type === "status") {
-      // 移除状态渲染
-      return null
-    }
-    if (type === "insight") {
-      const fullText = ('full_text' in meta && typeof meta.full_text === 'string') 
-        ? meta.full_text 
-        : undefined
-      return (
-        <InsightBox 
-          summary={block.text || ""} 
-          fullText={fullText} 
-        />
-      )
-    }
-  }
+  // Planning阶段 - 旧逻辑已移除
+  // Execution阶段 - 旧逻辑已移除
+  // Evaluation阶段 - 旧逻辑已移除
+  // Reflection阶段 - 旧逻辑已移除
 
   // 未知的agent块类型，不渲染
   return null
