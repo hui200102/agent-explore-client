@@ -1,12 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChatContainer } from "@/components/chat/chat-container"
-import { SessionSidebar } from "@/components/chat/session-sidebar"
+import { SessionSidebar, ChatView } from "@/components/chat"
 import { useSessionList } from "@/hooks/use-session-list"
 import { apiClient } from "@/lib/api-client"
 import { SessionStorage } from "@/lib/session-storage"
-import { Loader2, BarChart3 } from "lucide-react"
+import { Loader2, BarChart3, Bot } from "lucide-react"
 import Link from "next/link"
 
 export default function Home() {
@@ -17,22 +16,20 @@ export default function Home() {
   const sessionList = useSessionList({
     userId: "user_default",
     autoLoad: true,
-    cacheEnabled: true,      // 启用缓存
-    syncAcrossTabs: true,    // 启用跨标签页同步
+    cacheEnabled: true,
+    syncAcrossTabs: true,
   })
 
-  // Initialize: Load existing session if available (don't auto-create)
+  // Initialize: Load existing session if available
   useEffect(() => {
     let mounted = true
 
     const initializeApp = async () => {
       try {
-        // Try to get session from localStorage
         const storedSessionId = SessionStorage.getSessionId()
 
         if (storedSessionId) {
           try {
-            // Verify session exists
             await apiClient.getSession(storedSessionId)
             if (mounted) {
               setCurrentSessionId(storedSessionId)
@@ -40,13 +37,11 @@ export default function Home() {
           } catch (err) {
             console.warn("Stored session invalid, clearing it", err)
             SessionStorage.clearSessionId()
-            // Don't auto-create, let user create manually
             if (mounted) {
               setCurrentSessionId(null)
             }
           }
         } else {
-          // No stored session, don't auto-create
           if (mounted) {
             setCurrentSessionId(null)
           }
@@ -87,31 +82,13 @@ export default function Home() {
   const handleDeleteSession = async (sessionId: string) => {
     const success = await sessionList.deleteSession(sessionId)
     if (success && sessionId === currentSessionId) {
-      // If we deleted the current session, clear it (don't auto-create)
       setCurrentSessionId(null)
       SessionStorage.clearSessionId()
     }
   }
 
   const handleUpdateSession = (sessionId: string, title: string) => {
-    // 使用防抖优化标题更新（手动编辑时）
     sessionList.updateSession(sessionId, { title }, false)
-  }
-
-  const handleSessionReady = (sessionId: string) => {
-    // 只在需要时刷新特定 session 信息，不需要刷新整个列表
-    // 选择已存在的 session 不需要刷新列表
-    // 只有创建新 session 或发送消息时才会更新列表
-    console.log("Session ready:", sessionId)
-  }
-
-  const handleMessageSent = (sessionId: string, messageText: string, messageCount: number) => {
-    // Update session metadata with latest message info
-    // 使用防抖避免频繁更新
-    sessionList.updateSession(sessionId, {
-      lastMessage: messageText.slice(0, 100), // Truncate long messages
-      messageCount: messageCount,
-    }, true) // 启用防抖
   }
 
   if (isInitializing) {
@@ -144,10 +121,10 @@ export default function Home() {
           onUpdateSession={handleUpdateSession}
           onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           onRefresh={sessionList.refreshAll}
-          showFilter={false}  // 可以根据需要启用过滤器
+          showFilter={false}
         />
 
-        {/* Main Chat Area */}
+        {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden border-l border-zinc-200 dark:border-zinc-800">
           {/* Top Navigation Bar */}
           <div className="flex items-center justify-end px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
@@ -160,11 +137,29 @@ export default function Home() {
             </Link>
           </div>
 
-          <ChatContainer 
-            sessionId={currentSessionId}
-            onSessionReady={handleSessionReady}
-            onMessageSent={handleMessageSent}
-          />
+          {/* Session Content */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {currentSessionId ? (
+              <ChatView sessionId={currentSessionId} className="flex-1" />
+            ) : (
+              <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-muted/20 to-background">
+                <div className="text-center space-y-6 max-w-md animate-fade-in-up px-6">
+                  <div className="relative">
+                    <div className="absolute inset-0 blur-2xl bg-primary/20 rounded-full animate-pulse"></div>
+                    <div className="mx-auto w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-2xl shadow-primary/30 relative">
+                      <Bot className="h-10 w-10 text-primary-foreground" />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-foreground mb-3">Welcome</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      Select a session from the sidebar or create a new one to get started.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

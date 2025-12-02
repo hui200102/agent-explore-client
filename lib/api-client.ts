@@ -1,6 +1,6 @@
 /**
  * API Client for Backend
- * Based on API_DOCUMENTATION.md
+ * Session Management & File Upload
  */
 
 // ============= Session Interfaces =============
@@ -20,7 +20,7 @@ export interface Session {
   session_id: string;
   user_id?: string | null;
   status: "active" | "inactive" | "completed";
-  current_message_id?: string | null;  // 当前消息ID
+  current_message_id?: string | null;
   metadata?: Record<string, unknown>;
   created_at: string;
   updated_at?: string | null;
@@ -52,398 +52,80 @@ export interface CloseSessionResponse {
   status: string;
 }
 
-export interface DeleteSessionResponse {
-  session_id: string;
-  status: string;
-}
-
 // ============= Message Interfaces =============
 
-// Content Block Types for sending messages
-export type ContentBlockInput = 
-  | TextBlockInput 
-  | ImageBlockInput 
-  | VideoBlockInput 
-  | AudioBlockInput 
-  | FileBlockInput;
-
-export interface TextBlockInput {
-  content_type: "text";
-  text: string;
-}
-
-export interface ImageBlockInput {
-  content_type: "image";
-  image: {
-    url?: string;
-    data?: string; // Base64
-    format?: string;
-    alt?: string;
-    caption?: string;
-    summary?: string;
-    width?: number;
-    height?: number;
-  };
-}
-
-export interface VideoBlockInput {
-  content_type: "video";
-  video: {
-    url?: string;
-    data?: string; // Base64
-    format?: string;
-    title?: string;
-    summary?: string;
-    duration?: number;
-    width?: number;
-    height?: number;
-    thumbnail_url?: string;
-  };
-}
-
-export interface AudioBlockInput {
-  content_type: "audio";
-  audio: {
-    url?: string;
-    data?: string; // Base64
-    format?: string;
-    title?: string;
-    summary?: string;
-    duration?: number;
-    sample_rate?: number;
-    channels?: number;
-  };
-}
-
-export interface FileBlockInput {
-  content_type: "file";
-  file: {
-    name: string; // Required
-    url?: string;
-    data?: string; // Base64
-    size?: number;
-    mime_type?: string;
-    extension?: string;
-    description?: string;
-    summary?: string;
-  };
-}
-
-export interface SendMessageRequest {
-  content_blocks: ContentBlockInput[];
-  role?: "user" | "assistant" | "system";
-  parent_message_id?: string;
-  include_history?: boolean;  // 是否包含历史消息，默认false
-  max_history_messages?: number;  // 最大历史消息数，默认10
-  metadata?: Record<string, unknown>;
-}
-
-export interface SendMessageResponse {
-  message_id: string;
+export interface SessionMessagesResponse {
   session_id: string;
-  assistant_message_id?: string;
-  task_id?: string;  // 后台任务ID
-  message: Message;
+  messages: Message[];
+  count: number;
 }
 
 export interface Message {
   message_id: string;
   session_id: string;
-  role: "user" | "assistant" | "system" | "agent" | "tool";
-  content_blocks: ContentBlock[];
-  pending_tasks: Record<string, PendingTask>;  // 进行中的任务
-  completed_tasks?: CompletedTask[];  // 已完成的任务历史（OpenAI 风格优化）
+  role: "user" | "assistant" | "system" | "tool";
+  status: "pending" | "processing" | "completed" | "failed";
   is_complete: boolean;
-  sequence_counter: number;  // 事件序列号
-  content_sequence: number;  // 内容序列号
-  parent_message_id?: string | null;
+  content_blocks: ContentBlock[];
+  pending_tasks: Record<string, Task>;
+  completed_tasks: Task[];
+  parent_message_id?: string;
   metadata?: Record<string, unknown>;
-  summary?: string | null;  // 消息摘要
+  summary?: string;
   created_at: string;
   updated_at: string;
 }
 
-export interface PendingTask {
-  task_id: string;
-  tool_name?: string;
-  tool_args?: Record<string, unknown>;
-  display_text?: string;
-  status?: string;
-  progress?: number;
-  task_type?: string;
-  [key: string]: unknown;
-}
-
-export interface CompletedTask {
-  task_id: string;
-  tool_name?: string;
-  tool_args?: Record<string, unknown>;
-  status: "completed" | "failed" | "cancelled";
-  completed_at: string;
-  interrupted?: boolean;  // 是否被中断
-  error?: string;  // 失败原因
-  [key: string]: unknown;
-}
-
-export interface GetMessagesResponse {
-  session_id: string;
-  messages: Message[];
-  count: number;
-}
-
-export interface GetHistoryResponse {
-  session_id: string;
-  messages: Message[];
-  count: number;
-}
-
-export interface SearchMessagesResponse {
-  query: string;
-  session_id?: string | null;
-  messages: Message[];
-  count: number;
-}
-
-export interface MessageStatistics {
-  total: number;
-  by_role: Record<string, number>;
-  by_session?: Record<string, number>;
-}
-
-export interface DeleteMessagesResponse {
-  session_id: string;
-  deleted_count: number;
-  status: string;
-}
-
-// ============= Content Block Interfaces =============
+export type ApiContentType = 
+  | 'text'
+  | 'image'
+  | 'audio'
+  | 'video'
+  | 'file'
+  | 'code'
+  | 'markdown'
+  | 'html'
+  | 'json'
+  | 'thinking'
+  | 'plan'
+  | 'execution_status'
+  | 'evaluation_result';
 
 export interface ContentBlock {
   content_id: string;
-  content_type: "text" | "image" | "video" | "audio" | "file" | "code" | "markdown" | "html" | "json" | "thinking" | "plan" | "execution_status" | "evaluation_result";
+  content_type: ApiContentType;
   sequence: number;
   is_placeholder: boolean;
-  text?: string;
-  image?: ImageContent;
-  video?: VideoContent;
-  audio?: AudioContent;
-  file?: FileContent;
   task_id?: string;
-  metadata?: ContentBlockMetadata;
   created_at: string;
   updated_at: string;
-}
-
-export type ContentBlockMetadata = 
-  | PlanningMetadata
-  | ExecutionMetadata
-  | EvaluationMetadata
-  | ReflectionMetadata
-  | Record<string, unknown>;
-
-export interface PlanningMetadata {
-  phase: "planning";
-  type: "status" | "plan";
-  steps?: string[];
-}
-
-export interface ExecutionMetadata {
-  phase: "execution";
-  type: "status" | "step_progress";
-  step?: number;
-  total?: number;
-}
-
-export interface EvaluationMetadata {
-  phase: "evaluation";
-  type: "status" | "result";
-  status?: "pass" | "fail";
-}
-
-export interface ReflectionMetadata {
-  phase: "reflection";
-  type: "status" | "insight" | "result";
-  full_text?: string;
-}
-
-export interface ImageContent {
-  url?: string;
-  data?: string; // base64
-  format?: string;
-  width?: number;
-  height?: number;
-  alt?: string;
-  caption?: string;
-  summary?: string;
+  text?: string;
+  image?: { url?: string; base64?: string; format?: string };
+  audio?: { url?: string; base64?: string; format?: string };
+  video?: { url?: string; format?: string };
+  file?: { url?: string; filename?: string; mime_type?: string };
   metadata?: Record<string, unknown>;
 }
 
-export interface VideoContent {
-  url?: string;
-  data?: string; // base64
-  format?: string;
-  duration?: number;
-  width?: number;
-  height?: number;
-  thumbnail_url?: string;
-  title?: string;
-  summary?: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface AudioContent {
-  url?: string;
-  data?: string; // base64
-  format?: string;
-  duration?: number;
-  sample_rate?: number;
-  channels?: number;
-  title?: string;
-  summary?: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface FileContent {
-  name: string; // Required
-  url?: string;
-  data?: string; // base64
-  size?: number;
-  mime_type?: string;
-  extension?: string;
-  description?: string;
-  summary?: string;
-  metadata?: Record<string, unknown>;
-}
-
-// ============= SSE Stream Interfaces =============
-
-export type StreamEventType =
-  | "message_start"
-  | "message_delta"
-  | "message_stop"
-  | "task_started"
-  | "task_progress"
-  | "task_completed"
-  | "task_failed"
-  | "error"
-  | "ping";
-
-export interface StreamEvent {
-  event_id: string;
-  event_type: StreamEventType;
-  channel: string;  // 通道名称，如 "message:{message_id}"
-  payload: Record<string, unknown>;
-  metadata?: Record<string, unknown>;  // 包含 message_id, session_id, sequence
-  timestamp: string;
-  sequence: number;  // 事件序列号
-  
-  // 便捷访问器（从 metadata 中提取）
-  message_id?: string;  // 从 metadata.message_id 提取
-  session_id?: string;  // 从 metadata.session_id 提取
-}
-
-// ============= Stream Event Payload Types =============
-
-/**
- * message_delta 事件的 payload
- */
-export interface MessageDeltaPayload {
-  delta: {
-    content: string | Record<string, unknown>;
-    index?: number;
-    tool_calls?: unknown[];
-  };
-  content_type: string;
-  checksum?: {
-    total_length: number;
-    delta_length: number;
-  };
-}
-
-/**
- * message_stop 事件的 payload
- */
-export interface MessageStopPayload {
-  stop_reason: string;
-  message?: Message;
-}
-
-/**
- * error 事件的 payload
- */
-export interface ErrorPayload {
-  error: string;
-  details?: {
-    type?: string;
-    traceback?: string;
-    [key: string]: unknown;
-  };
-}
-
-// 旧的 payload 类型已移除，如果需要请参考 git 历史
-
-
-// ============= Task Management Interfaces =============
-
-export type BackgroundTaskStatus = "pending" | "running" | "completed" | "failed" | "cancelled" | "timeout";
-
-export interface TaskResult {
+export interface Task {
   task_id: string;
-  status: BackgroundTaskStatus;
-  result?: unknown;
-  error?: string;
+  task_type: string;
+  display_text: string;
+  status: "pending" | "processing" | "completed" | "failed" | "cancelled";
+  progress: number;
   started_at: string;
+  updated_at?: string;
   completed_at?: string;
-  duration?: number;  // 秒
-}
-
-export interface ListTasksResponse {
-  tasks: Record<string, TaskResult>;
-  count: number;
-}
-
-export interface CancelTaskResponse {
-  task_id: string;
-  status: string;
-}
-
-// ============= File Upload Interfaces =============
-
-export interface UploadRequest {
-  fileName: string;
-  fileType: string;
-  fileSize: number;
-  folder?: string;
-}
-
-export interface PresignedUrlData {
-  uploadUrl: string;
-  fileUrl: string;
-  key: string;
-  expiresIn: number;
-  method: 'PUT';
-}
-
-export interface UploadResponse {
-  success: boolean;
-  data: PresignedUrlData;
   error?: string;
-  maxSize?: number;
-  maxSizeMB?: number;
+  tool_name?: string;
+  tool_args?: Record<string, unknown>;
+  steps?: string[];
+  metadata?: Record<string, unknown>;
 }
 
-// ============= Asset Analysis Interfaces =============
-
-export type AssetType = "image" | "video" | "audio" | "pdf" | "document" | "text" | "code" | "other";
-
-export interface AnalyzeAssetsRequest {
-  type: AssetType;
-  url: string;
-}
-
-export interface AnalyzeAssetsResponse {
-  dense_summary: string;  
-  keywords: string;
+export interface DeleteSessionResponse {
+  session_id: string;
+  status: string;
 }
 
 // ============= Health Check Interface =============
@@ -489,11 +171,49 @@ export interface MetricsResponse {
   timestamp: string;
 }
 
+// ============= File Upload Interfaces =============
+
+export interface UploadRequest {
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  folder?: string;
+}
+
+export interface PresignedUrlData {
+  uploadUrl: string;
+  fileUrl: string;
+  key: string;
+  expiresIn: number;
+  method: 'PUT';
+}
+
+export interface UploadResponse {
+  success: boolean;
+  data: PresignedUrlData;
+  error?: string;
+  maxSize?: number;
+  maxSizeMB?: number;
+}
+
+// ============= Asset Analysis Interfaces =============
+
+export type AssetType = "image" | "video" | "audio" | "pdf" | "document" | "text" | "code" | "other";
+
+export interface AnalyzeAssetsRequest {
+  type: AssetType;
+  url: string;
+}
+
+export interface AnalyzeAssetsResponse {
+  dense_summary: string;  
+  keywords: string;
+}
+
 // ============= API Client =============
 
 const AGENT_API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
 const BACKEND_API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_API_BASE_URL || "/api";
-
 
 export class ApiClient {
   private agentBaseUrl: string;
@@ -645,33 +365,14 @@ export class ApiClient {
   // ============= Message Management =============
 
   /**
-   * Send a message to a session
-   * POST /api/v1/sessions/{session_id}/messages
-   * Returns user_message_id and assistant_message_id
-   */
-  async sendMessage(sessionId: string, request: SendMessageRequest): Promise<SendMessageResponse> {
-    const response = await fetch(`${this.agentBaseUrl}/sessions/${sessionId}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: "Failed to send message" }));
-      throw new Error(error.detail || "Failed to send message");
-    }
-    return response.json();
-  }
-
-  /**
-   * Get messages in a session
+   * Get session messages (history)
    * GET /api/v1/sessions/{session_id}/messages
-   * Returns { session_id, messages[], count }
    */
   async getSessionMessages(
     sessionId: string,
     limit: number = 50,
     offset: number = 0
-  ): Promise<Message[]> {
+  ): Promise<SessionMessagesResponse> {
     const response = await fetch(
       `${this.agentBaseUrl}/sessions/${sessionId}/messages?limit=${limit}&offset=${offset}`
     );
@@ -679,8 +380,7 @@ export class ApiClient {
       const error = await response.json().catch(() => ({ detail: "Failed to get messages" }));
       throw new Error(error.detail || "Failed to get messages");
     }
-    const data: GetMessagesResponse = await response.json();
-    return data.messages;
+    return response.json();
   }
 
   /**
@@ -693,396 +393,6 @@ export class ApiClient {
       const error = await response.json().catch(() => ({ detail: "Failed to get message" }));
       throw new Error(error.detail || "Failed to get message");
     }
-    return response.json();
-  }
-
-
-  /**
-   * Get conversation history
-   * GET /api/v1/sessions/{session_id}/history
-   */
-  async getConversationHistory(
-    sessionId: string,
-    limit: number = 50,
-    includeSystem: boolean = false
-  ): Promise<GetHistoryResponse> {
-    const response = await fetch(
-      `${this.agentBaseUrl}/sessions/${sessionId}/history?limit=${limit}&include_system=${includeSystem}`
-    );
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: "Failed to get history" }));
-      throw new Error(error.detail || "Failed to get history");
-    }
-    return response.json();
-  }
-
-  /**
-   * Search messages
-   * GET /api/v1/messages/search
-   */
-  async searchMessages(
-    query: string,
-    sessionId?: string,
-    limit: number = 20
-  ): Promise<SearchMessagesResponse> {
-    const params = new URLSearchParams({ query, limit: limit.toString() });
-    if (sessionId) params.append("session_id", sessionId);
-
-    const response = await fetch(`${this.agentBaseUrl}/messages/search?${params}`);
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: "Failed to search messages" }));
-      throw new Error(error.detail || "Failed to search messages");
-    }
-    return response.json();
-  }
-
-  /**
-   * Get message statistics
-   * GET /api/v1/messages/statistics
-   */
-  async getMessageStatistics(sessionId?: string): Promise<MessageStatistics> {
-    const url = sessionId
-      ? `${this.agentBaseUrl}/messages/statistics?session_id=${sessionId}`
-      : `${this.agentBaseUrl}/messages/statistics`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: "Failed to get statistics" }));
-      throw new Error(error.detail || "Failed to get statistics");
-    }
-    return response.json();
-  }
-
-  /**
-   * Delete all messages in a session
-   * DELETE /api/v1/sessions/{session_id}/messages
-   */
-  async deleteSessionMessages(sessionId: string): Promise<DeleteMessagesResponse> {
-    const response = await fetch(`${this.agentBaseUrl}/sessions/${sessionId}/messages`, {
-      method: "DELETE",
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: "Failed to delete messages" }));
-      throw new Error(error.detail || "Failed to delete messages");
-    }
-    return response.json();
-  }
-
-  // ============= Task Management =============
-
-  /**
-   * Get task status
-   * GET /api/v1/tasks/{task_id}
-   */
-  async getTaskStatus(taskId: string): Promise<TaskResult> {
-    const response = await fetch(`${this.agentBaseUrl}/tasks/${taskId}`);
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: "Failed to get task status" }));
-      throw new Error(error.detail || "Failed to get task status");
-    }
-    return response.json();
-  }
-
-  /**
-   * Cancel a task
-   * POST /api/v1/tasks/{task_id}/cancel
-   */
-  async cancelTask(taskId: string): Promise<CancelTaskResponse> {
-    const response = await fetch(`${this.agentBaseUrl}/tasks/${taskId}/cancel`, {
-      method: "POST",
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: "Failed to cancel task" }));
-      throw new Error(error.detail || "Failed to cancel task");
-    }
-    return response.json();
-  }
-
-  /**
-   * List all tasks
-   * GET /api/v1/tasks
-   */
-  async listTasks(): Promise<ListTasksResponse> {
-    const response = await fetch(`${this.agentBaseUrl}/tasks`);
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: "Failed to list tasks" }));
-      throw new Error(error.detail || "Failed to list tasks");
-    }
-    return response.json();
-  }
-
-  // ============= SSE Stream =============
-
-  /**
-   * Subscribe to message stream via SSE with auto-reconnect
-   * GET /api/v1/sessions/{session_id}/messages/{message_id}/stream
-   * 
-   * Events: message_start, message_delta, message_stop,
-   *         task_started, task_progress, task_completed, task_failed,
-   *         error, ping
-   */
-  subscribeToStream(
-    sessionId: string,
-    messageId: string,
-    lastId: string = "0",
-    onEvent: (event: StreamEvent) => void,
-    onError?: (error: Error) => void,
-    onReconnecting?: () => void
-  ): () => void {
-    let eventSource: EventSource | null = null;
-    let messageEnded = false;
-    let manualClose = false;
-    let reconnectAttempts = 0;
-    let lastEventId = lastId;
-    const maxReconnectAttempts = 5;
-    const baseReconnectDelay = 1000; // 1 second
-
-    const connect = () => {
-      const url = `${this.agentBaseUrl}/sessions/${sessionId}/messages/${messageId}/stream?last_id=${lastEventId}`;
-      console.log("Connecting to SSE stream:", url, `(attempt ${reconnectAttempts + 1})`);
-
-      eventSource = new EventSource(url);
-
-      // Handle different event types
-      const eventTypes = [
-        // 核心事件（OpenAI 风格）
-        'message_start',
-        'message_delta',
-        'message_stop',
-        
-        // 任务事件
-        'task_started',
-        'task_progress',
-        'task_completed',
-        'task_failed',
-        
-        // 其他
-        'error',
-        'ping'
-      ];
-
-      const handleEvent = (event: MessageEvent) => {
-        try {
-          // Check if data exists and is not empty
-          if (!event.data || event.data === '') {
-            console.debug('Received event without data, ignoring');
-            return;
-          }
-          
-          // Handle ping/pong heartbeat (plain text, not JSON)
-          if (event.data === 'ping' || event.data === 'pong') {
-            return;
-          }
-          
-          // Try to parse as JSON
-          let data: StreamEvent;
-          try {
-            data = JSON.parse(event.data);
-          } catch (parseError) {
-            console.warn('Failed to parse event data as JSON:', event.data, parseError);
-            return;
-          }
-          
-          // Validate that we have a proper StreamEvent
-          if (!data.event_type || !data.event_id) {
-            console.warn('Invalid StreamEvent format:', data);
-            return;
-          }
-          
-          // Extract message_id and session_id from metadata for convenience
-          if (data.metadata) {
-            data.message_id = data.metadata.message_id as string;
-            data.session_id = data.metadata.session_id as string;
-          }
-          
-          // Update last event ID for reconnection
-          if (data.event_id) {
-            lastEventId = data.event_id;
-          }
-          
-          // Reset reconnect attempts on successful event
-          reconnectAttempts = 0;
-          
-          // Track message_end
-          if (data.event_type === 'message_stop') {
-            messageEnded = true;
-            console.log("Message completed, connection will close");
-          }
-          
-          onEvent(data);
-          
-          // Close connection after message_end
-          if (messageEnded && eventSource) {
-            setTimeout(() => {
-              console.log("Closing SSE connection after message_end");
-              manualClose = true;
-              eventSource?.close();
-            }, 100);
-          }
-        } catch (error) {
-          console.error('Error in handleEvent:', error, 'event.data:', event.data);
-        }
-      };
-
-      // Register event listeners
-      eventTypes.forEach(eventType => {
-        eventSource?.addEventListener(eventType, handleEvent);
-      });
-
-      // Note: We don't use onmessage because it would cause duplicate event processing
-      // All events are handled by the specific addEventListener calls above
-
-      // Handle errors and reconnection
-      if (eventSource) {
-        eventSource.onerror = (error) => {
-          // If message ended or manually closed, don't reconnect
-          if (messageEnded || manualClose) {
-            console.log("SSE connection closed (expected)");
-            eventSource?.close();
-            return;
-          }
-          
-          // Connection error - attempt to reconnect
-          console.error("SSE connection error:", error);
-          eventSource?.close();
-          
-          // Check if we should reconnect
-          if (reconnectAttempts < maxReconnectAttempts) {
-            reconnectAttempts++;
-            const delay = Math.min(baseReconnectDelay * Math.pow(2, reconnectAttempts - 1), 30000);
-            
-            console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${maxReconnectAttempts})...`);
-            
-            if (onReconnecting) {
-              onReconnecting();
-            }
-            
-            setTimeout(() => {
-              connect();
-            }, delay);
-          } else {
-            console.error("Max reconnection attempts reached");
-            if (onError) {
-              onError(new Error("Connection failed after multiple attempts"));
-            }
-          }
-        };
-
-        eventSource.onopen = () => {
-          console.log("SSE connection opened successfully");
-          reconnectAttempts = 0; // Reset on successful connection
-        };
-      }
-    };
-
-    // Initial connection
-    connect();
-
-    // Return cleanup function
-    return () => {
-      console.log("Manually closing SSE connection");
-      manualClose = true;
-      messageEnded = true; // Prevent reconnection
-      eventSource?.close();
-    };
-  }
-
-  // ============= File Upload =============
-
-  /**
-   * Get presigned upload URL from backend
-   * POST /api/upload
-   */
-  async getPresignedUploadUrl(request: UploadRequest): Promise<PresignedUrlData> {
-    const response = await fetch(`${this.backendBaseUrl}/upload`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
-    });
-    
-    if (!response.ok) {
-      const error: UploadResponse = await response.json().catch(() => ({ 
-        success: false,
-        data: {} as PresignedUrlData,
-        error: "Failed to get upload URL" 
-      }));
-      
-      // Handle specific error cases
-      if (error.error) {
-        throw new Error(error.error);
-      }
-      throw new Error("Failed to get upload URL");
-    }
-    
-    const result: UploadResponse = await response.json();
-    if (!result.success || !result.data) {
-      throw new Error(result.error || "Failed to get upload URL");
-    }
-    
-    return result.data;
-  }
-
-  /**
-   * Upload file using resumable upload with progress tracking
-   */
-  async uploadFileWithProgress(
-    file: File,
-    uploadUrl: string,
-    onProgress?: (progress: number) => void
-  ): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-
-      // Track upload progress
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable && onProgress) {
-          const progress = Math.round((event.loaded * 100) / event.total);
-          onProgress(progress);
-        }
-      });
-
-      // Handle successful upload
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          if (onProgress) onProgress(100);
-          resolve();
-        } else {
-          reject(new Error(`Upload failed: ${xhr.statusText}`));
-        }
-      });
-
-      // Handle network errors
-      xhr.addEventListener('error', () => {
-        reject(new Error('Upload failed due to network error'));
-      });
-
-      // Handle aborted uploads
-      xhr.addEventListener('abort', () => {
-        reject(new Error('Upload was aborted'));
-      });
-
-      // Start upload
-      xhr.open('PUT', uploadUrl);
-      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-      xhr.send(file);
-    });
-  }
-
-  /**
-   * Analyze uploaded asset (image, video, audio, etc.)
-   * POST /api/v1/analyze-assets
-   */
-  async analyzeAsset(request: AnalyzeAssetsRequest): Promise<AnalyzeAssetsResponse> {
-    const response = await fetch(`${this.agentBaseUrl}/analyze-assets`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: "Failed to analyze asset" }));
-      throw new Error(error.detail || "Failed to analyze asset");
-    }
-
     return response.json();
   }
 
@@ -1126,6 +436,102 @@ export class ApiClient {
       const error = await response.json().catch(() => ({ detail: "Failed to get statistics" }));
       throw new Error(error.detail || "Failed to get statistics");
     }
+    return response.json();
+  }
+
+  // ============= File Upload =============
+
+  /**
+   * Get presigned upload URL from backend
+   * POST /api/upload
+   */
+  async getPresignedUploadUrl(request: UploadRequest): Promise<PresignedUrlData> {
+    const response = await fetch(`${this.backendBaseUrl}/upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+    
+    if (!response.ok) {
+      const error: UploadResponse = await response.json().catch(() => ({ 
+        success: false,
+        data: {} as PresignedUrlData,
+        error: "Failed to get upload URL" 
+      }));
+      
+      if (error.error) {
+        throw new Error(error.error);
+      }
+      throw new Error("Failed to get upload URL");
+    }
+    
+    const result: UploadResponse = await response.json();
+    if (!result.success || !result.data) {
+      throw new Error(result.error || "Failed to get upload URL");
+    }
+    
+    return result.data;
+  }
+
+  /**
+   * Upload file using resumable upload with progress tracking
+   */
+  async uploadFileWithProgress(
+    file: File,
+    uploadUrl: string,
+    onProgress?: (progress: number) => void
+  ): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && onProgress) {
+          const progress = Math.round((event.loaded * 100) / event.total);
+          onProgress(progress);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          if (onProgress) onProgress(100);
+          resolve();
+        } else {
+          reject(new Error(`Upload failed: ${xhr.statusText}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Upload failed due to network error'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        reject(new Error('Upload was aborted'));
+      });
+
+      xhr.open('PUT', uploadUrl);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      xhr.send(file);
+    });
+  }
+
+  // ============= Asset Analysis =============
+
+  /**
+   * Analyze uploaded asset (image, video, audio, etc.)
+   * POST /api/v1/analyze-assets
+   */
+  async analyzeAsset(request: AnalyzeAssetsRequest): Promise<AnalyzeAssetsResponse> {
+    const response = await fetch(`${this.agentBaseUrl}/analyze-assets`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to analyze asset" }));
+      throw new Error(error.detail || "Failed to analyze asset");
+    }
+
     return response.json();
   }
 }
