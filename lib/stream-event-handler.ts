@@ -177,42 +177,28 @@ export class StreamEventHandler {
       payload_keys: event.payload ? Object.keys(event.payload) : []
     })
 
-    // 序列号校验（对所有事件）
-    // 注意：使用 !== undefined 而不是 truthy 检查，因为 0 也是有效的序列号
     if (messageId && sequence !== undefined && sequence !== null) {
       const isValid = this.checkSequence(messageId, sequence)
       if (!isValid) {
-        // 检测到丢失的序列号，尝试重连
         const state = this.getIntegrityState(messageId)
         if (state.missingSequences.length > 5) {
           console.error(`[DataIntegrity] Too many missing sequences, triggering reconnect`)
-          // 触发重连逻辑（由外部组件处理）
           this.triggerReconnect(messageId, state.expectedSequence - 1)
         }
       }
     }
 
-    // 路由到具体的处理函数（OpenAI 风格 - 极简版 + 任务扩展）
     const handlers: Record<string, () => void> = {
-      // 核心事件（OpenAI 标准）
       'message_delta': () => this.handleMessageDelta(event, messageId!),
       'message_stop': () => this.handleMessageStop(event, messageId!),
       'error': () => this.handleError(event, messageId!),
       
-      // 任务事件（后端仍会发送这些事件，用于更细粒度的状态更新）
-      // 但现在主要依赖 message_delta 里的 tool_calls 和 content
       'task_started': () => this.handleTaskStarted(event, messageId!),
       'task_progress': () => this.handleTaskProgress(event, messageId!),
       'task_completed': () => this.handleTaskCompleted(event, messageId!),
       'task_failed': () => this.handleTaskFailed(event, messageId!),
     }
     
-    // 注意：所有增量更新（文本、内容块、工具调用）都通过 message_delta 传递
-    // 这完全符合 OpenAI 的设计理念：
-    // - 文本增量: {delta: {content: "text"}}
-    // - 工具调用: {delta: {tool_calls: [{...}]}}
-    // 参考：https://platform.openai.com/docs/api-reference/streaming
-
     const handler = handlers[event.event_type]
     if (handler && messageId) {
       try {
@@ -302,13 +288,10 @@ export class StreamEventHandler {
 
     this.updateMessage(messageId, (message) => {
       const existingTask = message.pending_tasks[taskId]
-      // 如果任务不存在，可能是已经处理过了，或者乱序了
       if (!existingTask) {
-        // 即使找不到活跃任务，也尝试记录到历史（如果payload包含足够信息）
         return message
       }
 
-      // 构建完成的任务对象
       const completedTask = {
         ...existingTask,
         ...taskData,
@@ -441,6 +424,18 @@ export class StreamEventHandler {
     }
 
     // ============ 3. 判断是文本增量还是内容块增量 ============
+    // 优先处理 Agent 内容块 (plan, execution_status, evaluation_result)
+    const isAgentBlock = ['plan', 'execution_status', 'evaluation_result'].includes(event.payload.content_type as string)
+    
+    if (isAgentBlock) {
+      // Agent 内容块通常以完整对象形式发送
+      if (delta.content && typeof delta.content === 'object') {
+        console.log(`[MessageDelta] Processing agent block: ${event.payload.content_type}`)
+        this.handleContentDeltaContent(messageId, delta.content as Record<string, unknown>, delta.index as number)
+        return
+      }
+    }
+
     if (event.payload.content_type === 'text' && typeof delta.content === 'string') {
       // 文本增量（批量发送的文本）
       this.handleTextDeltaContent(messageId, delta.content)
