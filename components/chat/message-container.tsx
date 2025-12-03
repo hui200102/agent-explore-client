@@ -34,7 +34,7 @@ const MessageBubble = memo(function MessageBubble({
   return (
     <div
       className={cn(
-        "flex gap-3 px-4 py-4",
+        "flex gap-4 px-4 py-6 hover:bg-muted/20 transition-colors",
         isUser ? "flex-row-reverse" : "flex-row",
         className
       )}
@@ -42,23 +42,23 @@ const MessageBubble = memo(function MessageBubble({
       {/* Avatar */}
       <div
         className={cn(
-          "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
+          "flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center shadow-sm",
           isUser
             ? "bg-primary text-primary-foreground"
-            : "bg-gradient-to-br from-violet-500 to-purple-600 text-white"
+            : "bg-gradient-to-br from-indigo-500 to-purple-600 text-white ring-1 ring-white/20"
         )}
       >
         {isUser ? (
-          <User className="h-4 w-4" />
+          <User className="h-5 w-5" />
         ) : (
-          <Bot className="h-4 w-4" />
+          <Bot className="h-5 w-5" />
         )}
       </div>
 
       {/* Content */}
       <div
         className={cn(
-          "flex-1 min-w-0 max-w-3xl",
+          "flex-1 min-w-0 max-w-3xl space-y-2",
           isUser ? "flex flex-col items-end" : ""
         )}
       >
@@ -261,9 +261,12 @@ const ErrorDisplay = memo(function ErrorDisplay({
 
 const StreamingIndicator = memo(function StreamingIndicator() {
   return (
-    <div className="flex items-center gap-2 text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" />
-      <span className="text-sm">AI is thinking...</span>
+    <div className="flex items-center gap-2.5 text-muted-foreground p-2 animate-fade-in-up">
+      <div className="relative flex h-2.5 w-2.5">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500"></span>
+      </div>
+      <span className="text-sm font-medium">Agent is working...</span>
     </div>
   );
 });
@@ -319,12 +322,12 @@ export const MessageContainer = memo(function MessageContainer({
   }
 
   return (
-    <div className={cn("flex flex-col h-full", className)}>
+    <div className={cn("flex flex-col h-full bg-background", className)}>
       <ScrollArea ref={scrollRef} className="flex-1">
-        <div className="py-4">
+        <div className="py-6 space-y-2">
           {/* Assistant Message Bubble */}
           <MessageBubble role="assistant">
-            <div className="space-y-3">
+            <div className="space-y-5">
               {/* Completed Tasks (collapsed) */}
               <CompletedTasksSection tasks={completedTasks} />
 
@@ -378,16 +381,16 @@ export const UserMessage = memo(function UserMessage({
 }: UserMessageProps) {
   return (
     <MessageBubble role="user" className={className}>
-      <div className="bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-4 py-2.5">
-        <p className="text-sm whitespace-pre-wrap">{content}</p>
+      <div className="bg-primary/90 text-primary-foreground rounded-2xl rounded-tr-sm px-5 py-3.5 shadow-sm max-w-[90%]">
+        <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{content}</p>
         
         {/* Attachments */}
         {attachments && attachments.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             {attachments.map((attachment, index) => (
               <div
                 key={index}
-                className="text-xs bg-primary-foreground/10 px-2 py-1 rounded"
+                className="text-xs bg-primary-foreground/15 px-2.5 py-1 rounded-md font-medium backdrop-blur-sm"
               >
                 {attachment.filename || attachment.type}
               </div>

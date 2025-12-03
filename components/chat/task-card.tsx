@@ -74,23 +74,23 @@ const StatusBadge = ({ status }: { status: TaskStatus }) => {
   const statusConfig: Record<TaskStatus, { label: string; className: string }> = {
     pending: {
       label: "Pending",
-      className: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+      className: "bg-muted text-muted-foreground",
     },
     processing: {
       label: "Running",
-      className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+      className: "bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20",
     },
     completed: {
       label: "Done",
-      className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+      className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20",
     },
     failed: {
       label: "Failed",
-      className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+      className: "bg-red-500/10 text-red-600 dark:text-red-400 ring-1 ring-red-500/20",
     },
     cancelled: {
       label: "Cancelled",
-      className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+      className: "bg-orange-500/10 text-orange-600 dark:text-orange-400 ring-1 ring-orange-500/20",
     },
   };
 
@@ -166,12 +166,12 @@ export const TaskCard = memo(function TaskCard({
   return (
     <div
       className={cn(
-        "rounded-lg border transition-all duration-200",
+        "rounded-lg border transition-all duration-200 shadow-sm",
         isActive
-          ? "border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20"
+          ? "border-blue-200 bg-blue-50/30 dark:border-blue-800/50 dark:bg-blue-950/10"
           : task.status === "failed"
-          ? "border-red-200 bg-red-50/30 dark:border-red-800 dark:bg-red-950/20"
-          : "border-border bg-card",
+          ? "border-red-200 bg-red-50/30 dark:border-red-800/50 dark:bg-red-950/10"
+          : "border-border bg-card/50 hover:bg-card",
         className
       )}
     >

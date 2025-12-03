@@ -26,16 +26,16 @@ export const HistoryMessage = memo(function HistoryMessage({
   const hasContentBlocks = contentBlocks && contentBlocks.length > 0;
 
   return (
-    <div className={cn("flex gap-3 px-4 py-4", className)}>
+    <div className={cn("flex gap-4 px-4 py-6 hover:bg-muted/20 transition-colors", className)}>
       {/* Avatar */}
-      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 text-white flex items-center justify-center">
-        <Bot className="h-4 w-4" />
+      <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-sm ring-1 ring-white/20">
+        <Bot className="h-5 w-5" />
       </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0 max-w-3xl">
         {hasContentBlocks ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {contentBlocks.map((block) => (
               <ContentBlockView
                 key={block.content_id}

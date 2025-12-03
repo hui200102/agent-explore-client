@@ -385,7 +385,6 @@ export function dispatchSSEEvent(
   data: unknown,
   store = useMessageStore.getState()
 ) {
-console.log('dispatchSSEEvent', eventType, data);
   switch (eventType) {
     case 'task_started':
       store.handleTaskStarted(data as TaskStartedEvent);

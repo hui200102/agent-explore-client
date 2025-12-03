@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -15,6 +15,8 @@ import {
   FileJson,
   Globe,
   Loader2,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 
 // ============ Text Content ============
@@ -32,15 +34,24 @@ const TextContent = memo(function TextContent({
 }: TextContentProps) {
   if (!text) {
     return isStreaming ? (
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        <span className="text-sm">Generating...</span>
+      <div className="flex items-center gap-2 text-muted-foreground py-2">
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/75 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+        </span>
+        <span className="text-sm font-medium animate-pulse">Thinking...</span>
       </div>
     ) : null;
   }
 
   return (
-    <div className={cn("prose dark:prose-invert max-w-none", className)}>
+    <div className={cn(
+      "prose prose-neutral dark:prose-invert max-w-none",
+      "prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent",
+      "prose-headings:font-semibold prose-headings:tracking-tight",
+      "prose-code:text-primary prose-code:bg-primary/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none",
+      className
+    )}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw]}
@@ -53,7 +64,7 @@ const TextContent = memo(function TextContent({
             if (isInline) {
               return (
                 <code
-                  className="px-1.5 py-0.5 bg-muted rounded text-sm font-mono"
+                  className="font-mono text-[0.9em]"
                   {...props}
                 >
                   {children}
@@ -62,16 +73,11 @@ const TextContent = memo(function TextContent({
             }
 
             return (
-              <div className="relative group">
-                <div className="absolute top-2 right-2 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded opacity-70">
-                  {match[1]}
-                </div>
-                <pre className="!mt-0 !mb-0">
-                  <code className={className} {...props}>
-                    {children}
-                  </code>
-                </pre>
-              </div>
+              <CodeContent
+                text={String(children).replace(/\n$/, "")}
+                language={match[1]}
+                className="not-prose"
+              />
             );
           },
           // Custom link rendering
@@ -81,7 +87,7 @@ const TextContent = memo(function TextContent({
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary hover:underline"
+                className="text-primary font-medium hover:underline underline-offset-4 decoration-primary/30 hover:decoration-primary transition-colors"
                 {...props}
               >
                 {children}
@@ -93,7 +99,7 @@ const TextContent = memo(function TextContent({
         {text}
       </ReactMarkdown>
       {isStreaming && (
-        <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-0.5" />
+        <span className="inline-block w-1.5 h-4 bg-primary animate-pulse ml-1 align-middle" />
       )}
     </div>
   );
@@ -292,17 +298,26 @@ const CodeContent = memo(function CodeContent({
   className,
 }: CodeContentProps) {
   return (
-    <div className={cn("relative group", className)}>
-      <div className="absolute top-2 right-2 flex items-center gap-2">
+    <div className={cn("relative group my-4 rounded-lg border bg-muted/40 overflow-hidden", className)}>
+      <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b">
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/30" />
+          <div className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/30" />
+          <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/30" />
+        </div>
         {language && (
-          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+          <span className="text-xs font-mono font-medium text-muted-foreground uppercase tracking-wider">
             {language}
           </span>
         )}
       </div>
-      <pre className="p-4 bg-muted rounded-lg overflow-x-auto">
-        <code className="text-sm font-mono">{text}</code>
-      </pre>
+      <div className="p-4 overflow-x-auto">
+        <pre>
+          <code className="text-sm font-mono leading-relaxed block min-w-full">
+            {text}
+          </code>
+        </pre>
+      </div>
     </div>
   );
 });
@@ -379,6 +394,55 @@ const PlaceholderContent = memo(function PlaceholderContent() {
   );
 });
 
+// ============ Thinking Content ============
+
+interface ThinkingContentProps {
+  text: string;
+  className?: string;
+}
+
+const ThinkingContent = memo(function ThinkingContent({
+  text,
+  className,
+}: ThinkingContentProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  // Generate preview from the first line or first few characters
+  const preview = text.split('\n')[0].slice(0, 60) + (text.length > 60 ? '...' : '');
+
+  return (
+    <div className={cn("my-1", className)}>
+      <div 
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center gap-2 cursor-pointer group py-1 select-none"
+      >
+        <div className="text-muted-foreground/40 group-hover:text-muted-foreground/70 transition-colors">
+           {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        </div>
+        
+        <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
+          <span className="text-[11px] font-medium text-muted-foreground/50 uppercase tracking-wider shrink-0">
+            Thought
+          </span>
+          {!isExpanded && (
+            <span className="text-[11px] text-muted-foreground/40 truncate italic font-mono">
+              {preview}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {isExpanded && (
+        <div className="pl-5 pr-2 pb-2 animate-in slide-in-from-top-1 duration-200">
+          <div className="text-[11px] text-muted-foreground/60 leading-relaxed whitespace-pre-wrap font-mono border-l border-muted-foreground/10 pl-2">
+            {text}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
 // ============ Main Content Block View ============
 
 interface ContentBlockViewProps {
@@ -444,14 +508,25 @@ export const ContentBlockView = memo(function ContentBlockView({
     case "html":
       return <HtmlContent text={block.text || ""} className={className} />;
 
-    // Temporary content types (usually not displayed to users)
+    // Special distinct styles for agent internal states
     case "thinking":
+      return <ThinkingContent text={block.text || ""} className={className} />;
+    
     case "plan":
     case "execution_status":
     case "evaluation_result":
       return (
-        <div className={cn("text-sm text-muted-foreground italic", className)}>
-          {block.text}
+        <div className={cn(
+          "text-xs font-mono bg-muted/30 px-3 py-2 rounded-md border border-muted/50 text-muted-foreground my-2", 
+          className
+        )}>
+          <div className="flex items-center gap-2 mb-1 opacity-70 text-[10px] uppercase tracking-widest">
+            <div className="w-1.5 h-1.5 rounded-full bg-current" />
+            {block.content_type.replace('_', ' ')}
+          </div>
+          <div className="whitespace-pre-wrap font-medium">
+            {block.text}
+          </div>
         </div>
       );
 

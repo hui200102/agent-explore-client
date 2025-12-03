@@ -168,10 +168,11 @@
   .prose {
     @apply text-foreground leading-relaxed;
     max-width: none;
+    font-size: 0.95rem;
   }
   
   .prose p {
-    @apply mb-4 leading-7;
+    @apply mb-5 leading-7;
   }
   
   .prose a {
@@ -208,6 +209,14 @@
   
   .prose code {
     @apply relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-medium text-foreground;
+  }
+
+  /* Remove backticks from code blocks in prose */
+  .prose code::before {
+    content: "" !important;
+  }
+  .prose code::after {
+    content: "" !important;
   }
   
   .prose pre {
