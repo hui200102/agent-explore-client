@@ -87,7 +87,8 @@ class SSEManager {
           if (event.type === 'ping' || event.type === 'pong' || !event.data) {
             return;
           }
-          dispatchSSEEvent(eventType, event.data);
+          const parsedData = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+          dispatchSSEEvent(eventType, parsedData);
         } catch (err) {
           console.error(`[SSEManager] Failed to parse ${eventType}:`, err);
         }
