@@ -1,10 +1,10 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ContentBlockView } from "./content-block-view";
 import type { ContentBlock } from "@/lib/message_type";
-import { Bot } from "lucide-react";
+import { Bot, ChevronDown, ChevronRight, Sparkles } from "lucide-react";
 
 // ============ History Message Props ============
 
@@ -21,9 +21,23 @@ export const HistoryMessage = memo(function HistoryMessage({
   contentBlocks,
   className,
 }: HistoryMessageProps) {
-  // If we have content blocks, render them
+  const [isProcessExpanded, setIsProcessExpanded] = useState(false);
+
+  // If we have content blocks, separate them into process (thinking) and final output
   // Otherwise fall back to plain text content
   const hasContentBlocks = contentBlocks && contentBlocks.length > 0;
+
+  // Filter blocks
+  const processBlocks = contentBlocks?.filter(
+    (block) => block.task_id || block.content_type === "thinking" || block.content_type === "plan"
+  );
+  
+  const finalBlocks = contentBlocks?.filter(
+    (block) => !block.task_id && block.content_type !== "thinking" && block.content_type !== "plan"
+  );
+
+  const hasProcess = processBlocks && processBlocks.length > 0;
+  const hasFinal = finalBlocks && finalBlocks.length > 0;
 
   return (
     <div className={cn("flex gap-4 px-4 py-6 hover:bg-muted/20 transition-colors", className)}>
@@ -36,13 +50,57 @@ export const HistoryMessage = memo(function HistoryMessage({
       <div className="flex-1 min-w-0 max-w-3xl">
         {hasContentBlocks ? (
           <div className="space-y-4">
-            {contentBlocks.map((block) => (
-              <ContentBlockView
-                key={block.content_id}
-                block={block}
-                isStreaming={false}
-              />
-            ))}
+            {/* Process / Thinking Section (Collapsed by default) */}
+            {hasProcess && (
+              <div className="rounded-lg border bg-muted/30 overflow-hidden">
+                <button
+                  onClick={() => setIsProcessExpanded(!isProcessExpanded)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 transition-colors"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Thought Process</span>
+                  <div className="ml-auto">
+                    {isProcessExpanded ? (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    )}
+                  </div>
+                </button>
+                
+                {isProcessExpanded && (
+                  <div className="p-3 pt-0 space-y-3 border-t border-border/50 mt-2">
+                    {processBlocks.map((block) => (
+                      <ContentBlockView
+                        key={block.content_id}
+                        block={block}
+                        isStreaming={false}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Final Output */}
+            {hasFinal ? (
+              <div className="space-y-4">
+                {finalBlocks.map((block) => (
+                  <ContentBlockView
+                    key={block.content_id}
+                    block={block}
+                    isStreaming={false}
+                  />
+                ))}
+              </div>
+            ) : !hasProcess && (
+              // Fallback if somehow we have blocks but no final blocks and no process blocks?
+              // Or if we only have process blocks (and they are collapsed), we might want to show something?
+              // If only process blocks exist, user might want to see them or see "No final output".
+              // For now, if only process blocks exist, they are inside the collapsed section.
+              // We can leave this empty or show a placeholder if needed.
+              null
+            )}
           </div>
         ) : (
           // Fallback: render plain text with markdown
