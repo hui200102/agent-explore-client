@@ -84,11 +84,20 @@ class SSEManager {
     eventTypes.forEach((eventType) => {
       eventSource.addEventListener(eventType, (event: MessageEvent) => {
         try {
-          if (event.type === 'ping' || event.type === 'pong' || !event.data) {
+          if (event.type === 'ping' || event.type === 'pong') {
+            return;
+          }
+          if (!event.data) {
             return;
           }
           const parsedData = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-          dispatchSSEEvent(eventType, parsedData);
+          // Unwrap payload if present (backend wraps events in standard envelope)
+          const eventData = (parsedData && typeof parsedData === 'object' && 'payload' in parsedData) 
+            ? parsedData.payload 
+            : parsedData;
+
+
+          dispatchSSEEvent(eventType, eventData);
         } catch (err) {
           console.error(`[SSEManager] Failed to parse ${eventType}:`, err);
         }

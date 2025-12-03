@@ -71,6 +71,7 @@ const ProgressBar = ({ progress, status }: { progress: number; status: TaskStatu
 // ============ Status Badge ============
 
 const StatusBadge = ({ status }: { status: TaskStatus }) => {
+  console.log("status", status);
   const statusConfig: Record<TaskStatus, { label: string; className: string }> = {
     pending: {
       label: "Pending",
@@ -94,16 +95,19 @@ const StatusBadge = ({ status }: { status: TaskStatus }) => {
     },
   };
 
-  const config = statusConfig[status];
+  const config = statusConfig[status] || {
+    label: status || "Unknown",
+    className: "bg-gray-500/10 text-gray-600 dark:text-gray-400 ring-1 ring-gray-500/20",
+  };
 
   return (
     <span
       className={cn(
         "px-2 py-0.5 text-xs font-medium rounded-full",
-        config.className
+        config?.className
       )}
     >
-      {config.label}
+      {config?.label}
     </span>
   );
 };
