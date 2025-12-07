@@ -16,7 +16,16 @@ import {
   Plus, 
   Globe, 
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  Hash,
+  Star,
+  Activity,
+  FileText,
+  Layers,
+  Info,
+  Clock,
+  MessageSquare,
+  Image as ImageIcon
 } from "lucide-react"
 
 // Types
@@ -251,7 +260,19 @@ export default function MemoryAdminPage() {
                             ? `${item.memory.memory_id.substring(0, 6)}...${item.memory.memory_id.substring(item.memory.memory_id.length - 4)}` 
                             : item.memory.memory_id}
                         </span>
-                        <span className="text-xs text-muted-foreground">
+                        
+                        {/* Status Badge */}
+                        <span className={`px-2 py-0.5 rounded-full text-xs border ${
+                          item.memory.status === 'raw' ? 'border-yellow-200 bg-yellow-50 text-yellow-700' :
+                          item.memory.status === 'consolidated' ? 'border-green-200 bg-green-50 text-green-700' :
+                          item.memory.status === 'archived' ? 'border-gray-200 bg-gray-50 text-gray-600' :
+                          'border-gray-100 bg-gray-50 text-gray-500'
+                        }`}>
+                          {item.memory.status}
+                        </span>
+
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
                           {new Date(item.memory.created_at || '').toLocaleDateString()}
                         </span>
                       </div>
@@ -268,14 +289,58 @@ export default function MemoryAdminPage() {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <p className="whitespace-pre-wrap text-sm">{item.memory.summary}</p>
+                  <CardContent className="space-y-3">
+                    <div className="space-y-1">
+                      <p className="whitespace-pre-wrap text-sm">{item.memory.summary}</p>
+                    </div>
+
+                    {/* Meta Info Grid */}
+                    <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground bg-muted/30 p-2 rounded-md">
+                      <div className="flex items-center gap-2" title="Importance Score">
+                        <Activity className="h-3 w-3 text-blue-500" />
+                        <span>Importance: {item.memory.importance_score?.toFixed(2) || 'N/A'}</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2" title="Type">
+                        <FileText className="h-3 w-3 text-orange-500" />
+                        <span className="capitalize">Type: {item.memory.type}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2" title="Category">
+                        <Layers className="h-3 w-3 text-purple-500" />
+                        <span>Category: {item.memory.category || 'Uncategorized'}</span>
+                      </div>
+
+                      {item.memory.session_id && item.memory.scope === 'session' && (
+                        <div className="flex items-center gap-2" title="Session ID">
+                          <MessageSquare className="h-3 w-3 text-green-500" />
+                          <span className="font-mono truncate max-w-[150px]">Session: {item.memory.session_id}</span>
+                        </div>
+                      )}
+                    </div>
                     
+                    {/* Resources (if any in metadata) */}
+                    {item.memory.metadata && (item.memory.metadata as any).resources && (item.memory.metadata as any).resources.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1 border-t border-dashed">
+                        <span className="text-xs font-medium text-muted-foreground flex items-center">
+                          <ImageIcon className="h-3 w-3 mr-1" />
+                          Resources:
+                        </span>
+                        {(item.memory.metadata as any).resources.map((res: any, idx: number) => (
+                          <span key={idx} className="text-xs bg-slate-100 px-1.5 py-0.5 rounded border flex items-center gap-1" title={JSON.stringify(res)}>
+                             {res.type}
+                             {res.url && <a href={res.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Link</a>}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
                     {item.memory.tags && item.memory.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-3">
+                      <div className="flex flex-wrap gap-2">
                         {item.memory.tags.map(tag => (
-                          <span key={tag} className="text-xs bg-secondary px-2 py-1 rounded-full">
-                            #{tag}
+                          <span key={tag} className="text-xs bg-secondary px-2 py-1 rounded-full flex items-center">
+                            <Hash className="h-3 w-3 mr-1 opacity-50" />
+                            {tag}
                           </span>
                         ))}
                       </div>
