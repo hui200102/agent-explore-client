@@ -30,10 +30,12 @@ export type ContentType =
   | 'markdown'           // Markdown 内容
   | 'html'               // HTML 内容
   | 'json'               // JSON 数据
-  | 'thinking'           // 思考过程（临时，不发送）
-  | 'plan'               // 计划（临时，不发送）
-  | 'execution_status'   // 执行状态（临时，不发送）
-  | 'evaluation_result'; // 评估结果（临时，不发送）
+  | 'thinking'           // 思考过程
+  | 'plan'               // 计划
+  | 'tool_call'          // 工具调用
+  | 'tool_output'        // 工具输出
+  | 'execution_status'   // 执行状态
+  | 'evaluation_result'; // 评估结果
 
 // ============ 内容块 ============
 

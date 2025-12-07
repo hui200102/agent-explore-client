@@ -68,162 +68,35 @@ const MessageBubble = memo(function MessageBubble({
   );
 });
 
-// ============ Active Tasks Section ============
+// ============ Message Content Stream ============
 
-interface ActiveTasksSectionProps {
-  tasks: Task[];
-  taskContents: Record<string, string[]>;
+interface MessageContentStreamProps {
+  contentOrder: string[];
   contentBlocks: Record<string, ContentBlock>;
   isStreaming: boolean;
 }
 
-const ActiveTasksSection = memo(function ActiveTasksSection({
-  tasks,
-  taskContents,
+const MessageContentStream = memo(function MessageContentStream({
+  contentOrder,
   contentBlocks,
   isStreaming,
-}: ActiveTasksSectionProps) {
-  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
-
-  const toggleTask = useCallback((taskId: string) => {
-    setExpandedTasks((prev) => {
-      const next = new Set(prev);
-      if (next.has(taskId)) {
-        next.delete(taskId);
-      } else {
-        next.add(taskId);
-      }
-      return next;
-    });
-  }, []);
-
-  if (tasks.length === 0) return null;
+}: MessageContentStreamProps) {
+  if (contentOrder.length === 0) return null;
 
   return (
     <div className="space-y-2">
-      {tasks.map((task) => {
-        const taskContentIds = taskContents[task.task_id] || [];
-        const taskBlocks = taskContentIds
-          .map((id) => contentBlocks[id])
-          .filter(Boolean);
-        const hasContent = taskBlocks.length > 0;
-        const isExpanded = expandedTasks.has(task.task_id);
-
+      {contentOrder.map((id, index) => {
+        const block = contentBlocks[id];
+        if (!block) return null;
+        
         return (
-          <TaskCard
-            key={task.task_id}
-            task={task}
-            isExpanded={isExpanded}
-            onToggle={() => toggleTask(task.task_id)}
-          >
-            {hasContent && (
-              <div className="space-y-2">
-                {taskBlocks.map((block, index) => (
-                  <ContentBlockView
-                    key={block.content_id}
-                    block={block}
-                    isStreaming={
-                      isStreaming && index === taskBlocks.length - 1
-                    }
-                  />
-                ))}
-              </div>
-            )}
-          </TaskCard>
+          <ContentBlockView
+            key={id}
+            block={block}
+            isStreaming={isStreaming && index === contentOrder.length - 1}
+          />
         );
       })}
-    </div>
-  );
-});
-
-// ============ Completed Tasks Section ============
-
-interface CompletedTasksSectionProps {
-  tasks: Task[];
-  maxVisible?: number;
-}
-
-const CompletedTasksSection = memo(function CompletedTasksSection({
-  tasks,
-  maxVisible = 3,
-}: CompletedTasksSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  if (tasks.length === 0) return null;
-
-  const visibleTasks = isExpanded ? tasks : tasks.slice(-maxVisible);
-  const hiddenCount = tasks.length - maxVisible;
-
-  return (
-    <div className="space-y-1">
-      {/* Show more button */}
-      {hiddenCount > 0 && !isExpanded && (
-        <button
-          onClick={() => setIsExpanded(true)}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
-        >
-          <ChevronUp className="h-3 w-3" />
-          Show {hiddenCount} more tasks
-        </button>
-      )}
-
-      {/* Task list */}
-      <div className="space-y-1">
-        {visibleTasks.map((task) => (
-          <CompactTaskCard key={task.task_id} task={task} />
-        ))}
-      </div>
-
-      {/* Collapse button */}
-      {isExpanded && hiddenCount > 0 && (
-        <button
-          onClick={() => setIsExpanded(false)}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
-        >
-          <ChevronDown className="h-3 w-3" />
-          Show less
-        </button>
-      )}
-    </div>
-  );
-});
-
-// ============ Final Output Section ============
-
-interface FinalOutputSectionProps {
-  contentOrder: string[];
-  contentBlocks: Record<string, ContentBlock>;
-  taskContents: Record<string, string[]>;
-  isStreaming: boolean;
-}
-
-const FinalOutputSection = memo(function FinalOutputSection({
-  contentOrder,
-  contentBlocks,
-  taskContents,
-  isStreaming,
-}: FinalOutputSectionProps) {
-  // Get all content IDs that belong to tasks
-  const taskContentIds = new Set(
-    Object.values(taskContents).flat()
-  );
-
-  // Filter content blocks that don't belong to any task (final outputs)
-  const finalBlocks = contentOrder
-    .map((id) => contentBlocks[id])
-    .filter((block) => block && !taskContentIds.has(block.content_id));
-
-  if (finalBlocks.length === 0) return null;
-
-  return (
-    <div className="space-y-4 mt-4">
-      {finalBlocks.map((block, index) => (
-        <ContentBlockView
-          key={block.content_id}
-          block={block}
-          isStreaming={isStreaming && index === finalBlocks.length - 1}
-        />
-      ))}
     </div>
   );
 });
@@ -328,29 +201,18 @@ export const MessageContainer = memo(function MessageContainer({
           {/* Assistant Message Bubble */}
           <MessageBubble role="assistant">
             <div className="space-y-5">
-              {/* Completed Tasks (collapsed) */}
-              <CompletedTasksSection tasks={completedTasks} />
-
-              {/* Active Tasks */}
-              <ActiveTasksSection
-                tasks={activeTasks}
-                taskContents={taskContents}
-                contentBlocks={contentBlocks}
-                isStreaming={isStreaming}
-              />
-
-              {/* Streaming indicator when no active tasks */}
-              {isStreaming && activeTasks.length === 0 && contentOrder.length === 0 && (
-                <StreamingIndicator />
-              )}
-
-              {/* Final Output */}
-              <FinalOutputSection
+              
+              {/* Main Content Stream (Thoughts, Plans, Tools, Text) */}
+              <MessageContentStream
                 contentOrder={contentOrder}
                 contentBlocks={contentBlocks}
-                taskContents={taskContents}
                 isStreaming={isStreaming}
               />
+
+              {/* Streaming indicator when no content yet */}
+              {isStreaming && contentOrder.length === 0 && (
+                <StreamingIndicator />
+              )}
 
               {/* Error */}
               {error && <ErrorDisplay error={error} onDismiss={clearError} />}

@@ -1,22 +1,22 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import { cn } from "@/lib/utils";
-import type { ContentBlock, ContentType } from "@/lib/message_type";
+import type { ContentBlock } from "@/lib/message_type";
 import {
   FileText,
   Image as ImageIcon,
   Music,
   Video,
-  Code2,
   FileJson,
   Globe,
   Loader2,
   ChevronRight,
-  ChevronDown,
+  Wrench,
+  CheckCircle2,
 } from "lucide-react";
 
 // ============ Text Content ============
@@ -394,49 +394,244 @@ const PlaceholderContent = memo(function PlaceholderContent() {
   );
 });
 
-// ============ Thinking Content ============
+// ============ Thinking Content (Cursor Style) ============
 
 interface ThinkingContentProps {
   text: string;
+  isStreaming?: boolean;
+  createdAt?: string;
   className?: string;
 }
 
 const ThinkingContent = memo(function ThinkingContent({
   text,
+  isStreaming,
+  createdAt,
   className,
 }: ThinkingContentProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const startTimeRef = useRef<number>(0);
   
-  // Generate preview from the first line or first few characters
-  const preview = text.split('\n')[0].slice(0, 60) + (text.length > 60 ? '...' : '');
+  // Initialize start time
+  useEffect(() => {
+    if (createdAt) {
+      startTimeRef.current = new Date(createdAt).getTime();
+    } else if (startTimeRef.current === 0) {
+      startTimeRef.current = Date.now();
+    }
+  }, [createdAt]);
+  
+  // Track elapsed time while streaming
+  useEffect(() => {
+    if (!isStreaming) return;
+    
+    // Set initial elapsed time
+    if (startTimeRef.current > 0) {
+      setElapsedTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
+    }
+    
+    const timer = setInterval(() => {
+      if (startTimeRef.current > 0) {
+        setElapsedTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
+      }
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [isStreaming]);
+
+  // Format time display
+  const timeDisplay = elapsedTime > 0 ? `${elapsedTime}s` : '';
+
+  // If streaming with no content yet, show minimal Cursor-style indicator
+  if (!text && isStreaming) {
+    return (
+      <div className={cn("my-2", className)}>
+        <div className="inline-flex items-center gap-1.5 text-muted-foreground/60 text-sm">
+          <div className="relative w-4 h-4">
+            <div className="absolute inset-0 rounded-full border-2 border-muted-foreground/20" />
+            <div className="absolute inset-0 rounded-full border-2 border-t-muted-foreground/60 animate-spin" />
+          </div>
+          <span>Thinking...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!text) return null;
 
   return (
-    <div className={cn("my-1", className)}>
+    <div className={cn("my-2", className)}>
       <div 
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-2 cursor-pointer group py-1 select-none"
+        className="inline-flex items-center gap-1.5 cursor-pointer group select-none text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors"
       >
-        <div className="text-muted-foreground/40 group-hover:text-muted-foreground/70 transition-colors">
-           {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        <div className="transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+          <ChevronRight className="h-4 w-4" />
         </div>
         
-        <div className="flex-1 min-w-0 flex items-center gap-2 overflow-hidden">
-          <span className="text-[11px] font-medium text-muted-foreground/50 uppercase tracking-wider shrink-0">
-            Thought
-          </span>
-          {!isExpanded && (
-            <span className="text-[11px] text-muted-foreground/40 truncate italic font-mono">
-              {preview}
-            </span>
+        <span className="text-sm">
+          {isStreaming ? (
+            <>Thinking{timeDisplay ? ` for ${timeDisplay}` : '...'}</>
+          ) : (
+            <>Thought{timeDisplay ? ` for ${timeDisplay}` : ''}</>
           )}
-        </div>
+        </span>
+        
+        {isStreaming && (
+          <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-pulse" />
+        )}
       </div>
 
       {isExpanded && (
-        <div className="pl-5 pr-2 pb-2 animate-in slide-in-from-top-1 duration-200">
-          <div className="text-[11px] text-muted-foreground/60 leading-relaxed whitespace-pre-wrap font-mono border-l border-muted-foreground/10 pl-2">
+        <div className="mt-2 ml-5 animate-in slide-in-from-top-2 duration-200">
+          <div className="text-sm text-muted-foreground/70 leading-relaxed whitespace-pre-wrap pl-3 border-l-2 border-muted-foreground/10">
             {text}
+            {isStreaming && <span className="inline-block w-0.5 h-4 bg-muted-foreground/40 animate-pulse ml-0.5 align-middle" />}
           </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+// ============ Tool Call Content (Cursor Style) ============
+
+interface ToolCallContentProps {
+  block: ContentBlock;
+  className?: string;
+}
+
+const ToolCallContent = memo(function ToolCallContent({
+  block,
+  className,
+}: ToolCallContentProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const toolName = block.metadata?.tool_name as string || "unknown_tool";
+  const toolArgs = block.metadata?.tool_args || {};
+
+  return (
+    <div className={cn("my-2", className)}>
+      <div 
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="inline-flex items-center gap-1.5 cursor-pointer group select-none text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors"
+      >
+        <div className="transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+          <ChevronRight className="h-4 w-4" />
+        </div>
+        
+        <Wrench className="h-3.5 w-3.5" />
+        
+        <span className="text-sm">
+          Called <span className="font-medium text-foreground/70">{toolName}</span>
+        </span>
+      </div>
+
+      {isExpanded && (
+        <div className="mt-2 ml-5 animate-in slide-in-from-top-2 duration-200">
+          <div className="bg-muted/30 rounded-md p-3 text-xs font-mono overflow-x-auto border border-muted/50 pl-3 border-l-2 border-l-muted-foreground/20">
+            <pre className="text-muted-foreground/80">
+              {JSON.stringify(toolArgs, null, 2)}
+            </pre>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+// ============ Tool Output Content (Cursor Style) ============
+
+interface ToolOutputContentProps {
+  block: ContentBlock;
+  className?: string;
+}
+
+const ToolOutputContent = memo(function ToolOutputContent({
+  block,
+  className,
+}: ToolOutputContentProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const toolName = block.metadata?.tool_name as string || "Tool";
+
+  return (
+    <div className={cn("my-2", className)}>
+      <div 
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="inline-flex items-center gap-1.5 cursor-pointer group select-none text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors"
+      >
+        <div className="transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+          <ChevronRight className="h-4 w-4" />
+        </div>
+        
+        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500/70" />
+        
+        <span className="text-sm">
+          Output from <span className="font-medium text-foreground/70">{toolName}</span>
+        </span>
+      </div>
+
+      {isExpanded && (
+        <div className="mt-2 ml-5 animate-in slide-in-from-top-2 duration-200">
+          <div className="bg-muted/20 rounded-md p-3 text-xs font-mono overflow-x-auto max-h-[300px] overflow-y-auto pl-3 border-l-2 border-l-emerald-500/30">
+            <pre className="text-muted-foreground/80 whitespace-pre-wrap break-words">
+              {block.text}
+            </pre>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+// ============ Plan Content (Cursor Style - Collapsible) ============
+
+interface PlanContentProps {
+  block: ContentBlock;
+  className?: string;
+}
+
+const PlanContent = memo(function PlanContent({
+  block,
+  className,
+}: PlanContentProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const steps = (block.metadata?.steps as string[]) || [];
+  
+  return (
+    <div className={cn("my-2", className)}>
+      <div 
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="inline-flex items-center gap-1.5 cursor-pointer group select-none text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors"
+      >
+        <div className="transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+          <ChevronRight className="h-4 w-4" />
+        </div>
+        
+        <span className="text-sm">
+          Plan
+          {steps.length > 0 && (
+            <span className="text-muted-foreground/50 ml-1">({steps.length} steps)</span>
+          )}
+        </span>
+      </div>
+
+      {isExpanded && (
+        <div className="mt-2 ml-5 animate-in slide-in-from-top-2 duration-200">
+          {steps.length > 0 ? (
+            <div className="space-y-1.5 pl-3 border-l-2 border-muted-foreground/10">
+              {steps.map((step, index) => (
+                <div key={index} className="flex items-start gap-2 text-sm text-muted-foreground/70">
+                  <span className="text-muted-foreground/40 font-mono text-xs mt-0.5">{index + 1}.</span>
+                  <span className="leading-relaxed">{step}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground/70 pl-3 border-l-2 border-muted-foreground/10">
+              {block.text}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -508,11 +703,26 @@ export const ContentBlockView = memo(function ContentBlockView({
     case "html":
       return <HtmlContent text={block.text || ""} className={className} />;
 
-    // Special distinct styles for agent internal states
+    // Special distinct styles for agent internal states (Cursor-style)
     case "thinking":
-      return <ThinkingContent text={block.text || ""} className={className} />;
-    
+      return (
+        <ThinkingContent 
+          text={block.text || ""} 
+          isStreaming={isStreaming} 
+          createdAt={block.created_at}
+          className={className} 
+        />
+      );
+
     case "plan":
+      return <PlanContent block={block} className={className} />;
+
+    case "tool_call":
+      return <ToolCallContent block={block} className={className} />;
+
+    case "tool_output":
+      return <ToolOutputContent block={block} className={className} />;
+    
     case "execution_status":
     case "evaluation_result":
       return (

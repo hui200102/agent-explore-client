@@ -276,7 +276,9 @@ export const useMessageStore = create<MessageStore>()((set, get) => ({
         }
         
         const block = state.contentBlocks[contentId];
-        if (block && block.content_type === 'text') {
+        // Allow incremental updates to any block type that supports text
+        // (text, thinking, plan, tool_output, etc.)
+        if (block && block.text !== undefined) {
           const updatedBlock: ContentBlock = {
             ...block,
             text: (block.text || '') + deltaContent,
