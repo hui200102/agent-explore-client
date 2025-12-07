@@ -210,6 +210,66 @@ export interface AnalyzeAssetsResponse {
   keywords: string;
 }
 
+// ============= Memory Interfaces =============
+
+export interface Memory {
+  memory_id: string;
+  session_id: string;
+  summary: string;
+  type: string;
+  category?: string;
+  metadata?: Record<string, unknown>;
+  importance_score: number;
+  tags: string[];
+  status: string;
+  scope: string;
+  created_at: string;
+  updated_at: string;
+  has_resources: boolean;
+}
+
+export interface MemoryQueryRequest {
+  query?: string;
+  session_id?: string;
+  scope?: string;
+  type?: string;
+  tags?: string[];
+  limit?: number;
+  offset?: number | string;
+  min_score?: number;
+  include_global?: boolean;
+}
+
+export interface MemorySearchResult {
+  memory: Memory;
+  score: number;
+}
+
+export interface MemoryQueryResponse {
+  results: MemorySearchResult[];
+  count: number;
+  next_cursor?: string;
+  has_more?: boolean;
+}
+
+export interface UpdateMemoryRequest {
+  summary?: string;
+  category?: string;
+  tags?: string[];
+  scope?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CreateMemoryRequest {
+  summary: string;
+  scope: string;
+  session_id: string;
+  type?: string;
+  category?: string;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+}
+
 // ============= API Client =============
 
 const AGENT_API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
@@ -392,6 +452,90 @@ export class ApiClient {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: "Failed to get message" }));
       throw new Error(error.detail || "Failed to get message");
+    }
+    return response.json();
+  }
+
+  // ============= Memory Management =============
+
+  /**
+   * Create a new memory
+   * POST /api/v1/memories
+   */
+  async createMemory(request: CreateMemoryRequest): Promise<{ status: string; memory_id: string }> {
+    const response = await fetch(`${this.agentBaseUrl}/memories`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to create memory" }));
+      throw new Error(error.detail || "Failed to create memory");
+    }
+    return response.json();
+  }
+
+  /**
+   * Query memories
+   * POST /api/v1/memories/query
+   */
+  async queryMemories(request: MemoryQueryRequest): Promise<MemoryQueryResponse> {
+    const response = await fetch(`${this.agentBaseUrl}/memories/query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to query memories" }));
+      throw new Error(error.detail || "Failed to query memories");
+    }
+    return response.json();
+  }
+
+  /**
+   * Get a single memory
+   * GET /api/v1/memories/{memory_id}
+   */
+  async getMemory(memoryId: string): Promise<Memory> {
+    const response = await fetch(`${this.agentBaseUrl}/memories/${memoryId}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to get memory" }));
+      throw new Error(error.detail || "Failed to get memory");
+    }
+    return response.json();
+  }
+
+  /**
+   * Update a memory
+   * PATCH /api/v1/memories/{memory_id}
+   */
+  async updateMemory(
+    memoryId: string,
+    updates: UpdateMemoryRequest
+  ): Promise<{ status: string; memory_id: string }> {
+    const response = await fetch(`${this.agentBaseUrl}/memories/${memoryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to update memory" }));
+      throw new Error(error.detail || "Failed to update memory");
+    }
+    return response.json();
+  }
+
+  /**
+   * Delete a memory
+   * DELETE /api/v1/memories/{memory_id}
+   */
+  async deleteMemory(memoryId: string): Promise<{ status: string; memory_id: string }> {
+    const response = await fetch(`${this.agentBaseUrl}/memories/${memoryId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to delete memory" }));
+      throw new Error(error.detail || "Failed to delete memory");
     }
     return response.json();
   }

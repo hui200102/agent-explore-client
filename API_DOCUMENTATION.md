@@ -23,6 +23,11 @@
 3. [系统接口](#3-系统接口)
    - [3.1 健康检查](#31-健康检查)
    - [3.2 根路径](#32-根路径)
+4. [记忆管理](#4-记忆管理)
+   - [4.1 查询记忆](#41-查询记忆)
+   - [4.2 获取单个记忆](#42-获取单个记忆)
+   - [4.3 更新记忆](#43-更新记忆)
+   - [4.4 删除记忆](#44-删除记忆)
 
 ---
 
@@ -454,7 +459,7 @@ eventSource.addEventListener('message_end', (event) => {
 eventSource.onerror = (error) => {
   console.error('连接错误:', error);
   eventSource.close();
-};
+});
 ```
 
 ---
@@ -518,6 +523,58 @@ eventSource.onerror = (error) => {
 
 **状态码**:
 - `200`: 成功
+
+---
+
+## 4. 记忆管理
+
+### 4.1 查询记忆
+
+支持多维度查询记忆，包括文本搜索、会话过滤、类型过滤等。
+
+**接口地址**: `POST /api/v1/memories/query`
+
+**请求参数**:
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| query | string | 否 | 搜索关键词 |
+| session_id | string | 否 | 会话ID |
+| scope | string | 否 | 作用域: "session" 或 "global" |
+| type | string | 否 | 记忆类型 |
+| tags | array[string] | 否 | 标签列表 |
+| limit | integer | 否 | 返回数量限制，默认 50 |
+| min_score | float | 否 | 最小相似度分数 |
+| include_global | boolean | 否 | 是否包含全局记忆（当指定 session_id 时），默认 false |
+
+**响应参数**:
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| results | array | 记忆列表 |
+| count | integer | 返回数量 |
+
+### 4.2 获取单个记忆
+
+**接口地址**: `GET /api/v1/memories/{memory_id}`
+
+### 4.3 更新记忆
+
+**接口地址**: `PATCH /api/v1/memories/{memory_id}`
+
+**请求参数**:
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| summary | string | 否 | 摘要内容 |
+| category | string | 否 | 分类 |
+| tags | array[string] | 否 | 标签 |
+| scope | string | 否 | 作用域 |
+| metadata | object | 否 | 元数据 |
+
+### 4.4 删除记忆
+
+**接口地址**: `DELETE /api/v1/memories/{memory_id}`
 
 ---
 
@@ -709,4 +766,3 @@ curl -X DELETE http://localhost:8000/api/v1/sessions/session_abc123
 - `processing`: 处理中
 - `completed`: 已完成
 - `failed`: 失败
-
