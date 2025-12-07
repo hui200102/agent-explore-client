@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient, Message as ApiMessage } from "@/lib/api-client";
+import { useFileUpload, type UploadedFile } from "@/hooks/use-file-upload";
 import {
   Send,
   Loader2,
@@ -18,6 +19,8 @@ import {
   X,
   Wifi,
   WifiOff,
+  AlertCircle,
+  FileText,
 } from "lucide-react";
 
 // ============ Types ============
@@ -38,12 +41,16 @@ interface Attachment {
   filename?: string;
   mime_type?: string;
   preview?: string;
+  summary?: string;
 }
 
 // ============ Message Input ============
 
 interface MessageInputProps {
-  onSend: (content: string, attachments?: Attachment[]) => void;
+  onSend: (content: string) => void;
+  files: UploadedFile[];
+  onAddFiles: (files: File[]) => void;
+  onRemoveFile: (fileId: string) => void;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
@@ -51,12 +58,14 @@ interface MessageInputProps {
 
 const MessageInput = memo(function MessageInput({
   onSend,
+  files,
+  onAddFiles,
+  onRemoveFile,
   disabled,
   placeholder = "Type your message...",
   className,
 }: MessageInputProps) {
   const [content, setContent] = useState("");
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -72,14 +81,15 @@ const MessageInput = memo(function MessageInput({
     }
   }, [content]);
 
-  const handleSubmit = useCallback(() => {
-    if (!content.trim() && attachments.length === 0) return;
-    if (disabled) return;
+  const isUploading = files.some(f => f.uploadStatus === "uploading" || f.analysisStatus === "analyzing");
 
-    onSend(content.trim(), attachments.length > 0 ? attachments : undefined);
+  const handleSubmit = useCallback(() => {
+    if (!content.trim() && files.length === 0) return;
+    if (disabled || isUploading) return;
+
+    onSend(content.trim());
     setContent("");
-    setAttachments([]);
-  }, [content, attachments, disabled, onSend]);
+  }, [content, files, disabled, isUploading, onSend]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -93,68 +103,35 @@ const MessageInput = memo(function MessageInput({
 
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (!files) return;
+      const selectedFiles = e.target.files;
+      if (!selectedFiles) return;
 
-      Array.from(files).forEach((file) => {
-        const isImage = file.type.startsWith("image/");
-        const isAudio = file.type.startsWith("audio/");
-        const isVideo = file.type.startsWith("video/");
-
-        // Create preview for images
-        if (isImage) {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            setAttachments((prev) => [
-              ...prev,
-              {
-                type: "image",
-                url: "", // Will be set after upload
-                filename: file.name,
-                mime_type: file.type,
-                preview: e.target?.result as string,
-              },
-            ]);
-          };
-          reader.readAsDataURL(file);
-        } else {
-          setAttachments((prev) => [
-            ...prev,
-            {
-              type: isAudio ? "audio" : isVideo ? "video" : "file",
-              url: "", // Will be set after upload
-              filename: file.name,
-              mime_type: file.type,
-            },
-          ]);
-        }
-      });
+      onAddFiles(Array.from(selectedFiles));
 
       // Reset input
       e.target.value = "";
     },
-    []
+    [onAddFiles]
   );
-
-  const removeAttachment = useCallback((index: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
-  }, []);
 
   return (
     <div className={cn("border-t bg-background", className)}>
       {/* Attachments Preview */}
-      {attachments.length > 0 && (
+      {files.length > 0 && (
         <div className="px-4 pt-3 flex flex-wrap gap-2">
-          {attachments.map((attachment, index) => (
+          {files.map((file) => (
             <div
-              key={index}
-              className="relative group flex items-center gap-2 bg-muted rounded-lg px-3 py-2"
+              key={file.id}
+              className={cn(
+                "relative group flex items-center gap-2 bg-muted rounded-lg px-3 py-2 border",
+                file.uploadStatus === "error" || file.analysisStatus === "error" ? "border-destructive/50 bg-destructive/10" : "border-transparent"
+              )}
             >
-              {attachment.preview ? (
+              {file.preview ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={attachment.preview}
-                  alt={attachment.filename}
+                  src={file.preview}
+                  alt={file.name}
                   className="w-10 h-10 object-cover rounded"
                 />
               ) : (
@@ -162,11 +139,43 @@ const MessageInput = memo(function MessageInput({
                   <Paperclip className="h-4 w-4 text-muted-foreground" />
                 </div>
               )}
-              <span className="text-xs text-muted-foreground max-w-[100px] truncate">
-                {attachment.filename}
-              </span>
+              
+              <div className="flex flex-col min-w-[100px] max-w-[200px]">
+                <span className="text-xs text-muted-foreground truncate font-medium">
+                  {file.name}
+                </span>
+                
+                {/* Status Indicator */}
+                <div className="flex items-center gap-1.5 mt-1">
+                  {file.uploadStatus === "uploading" && (
+                    <div className="flex items-center gap-1 text-[10px] text-blue-500">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span>Uploading {file.uploadProgress}%</span>
+                    </div>
+                  )}
+                  {file.uploadStatus === "success" && file.analysisStatus === "analyzing" && (
+                    <div className="flex items-center gap-1 text-[10px] text-amber-500">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span>Analyzing...</span>
+                    </div>
+                  )}
+                  {file.uploadStatus === "success" && file.analysisStatus === "complete" && (
+                    <div className="flex items-center gap-1 text-[10px] text-emerald-500">
+                      <FileText className="h-3 w-3" />
+                      <span>Analyzed</span>
+                    </div>
+                  )}
+                  {(file.uploadStatus === "error" || file.analysisStatus === "error") && (
+                    <div className="flex items-center gap-1 text-[10px] text-destructive">
+                      <AlertCircle className="h-3 w-3" />
+                      <span>{file.error || file.analysisError || "Failed"}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <button
-                onClick={() => removeAttachment(index)}
+                onClick={() => onRemoveFile(file.id)}
                 className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <X className="h-3 w-3" />
@@ -199,11 +208,11 @@ const MessageInput = memo(function MessageInput({
             size="icon"
             className="h-9 w-9 rounded-full flex-shrink-0"
             onClick={() => fileInputRef.current?.click()}
-            disabled={disabled}
+            disabled={disabled || isUploading}
           >
             <ImagePlus className="h-5 w-5 text-muted-foreground" />
           </Button>
-
+          
           {/* Textarea */}
           <Textarea
             ref={textareaRef}
@@ -224,9 +233,9 @@ const MessageInput = memo(function MessageInput({
             size="icon"
             className="h-9 w-9 rounded-full flex-shrink-0"
             onClick={handleSubmit}
-            disabled={disabled || (!content.trim() && attachments.length === 0)}
+            disabled={disabled || (!content.trim() && files.length === 0) || isUploading}
           >
-            {disabled ? (
+            {disabled || isUploading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Send className="h-4 w-4" />
@@ -321,10 +330,52 @@ export function ChatView({ sessionId, className }: ChatViewProps) {
               .map((block) => block.text || "")
               .join("\n") || "";
 
+            // Extract attachments for user messages from content_blocks
+            let attachments: Attachment[] | undefined;
+            if (msg.role === "user" && msg.content_blocks) {
+              const extractedAttachments = msg.content_blocks
+                .filter((block) => block.content_type !== "text")
+                .map((block): Attachment | null => {
+                  if (block.content_type === "image" && block.image?.url) {
+                    return {
+                      type: "image",
+                      url: block.image.url,
+                      summary: block.image.summary
+                    };
+                  } else if (block.content_type === "file" && block.file?.url) {
+                    return {
+                      type: "file",
+                      url: block.file.url,
+                      filename: block.file.filename || block.file.url.split('/').pop(),
+                      mime_type: block.file.mime_type
+                    };
+                  } else if (block.content_type === "audio" && block.audio?.url) {
+                    return {
+                      type: "audio",
+                      url: block.audio.url,
+                      mime_type: "audio/mpeg" // Default or extract if available
+                    };
+                  } else if (block.content_type === "video" && block.video?.url) {
+                    return {
+                      type: "video",
+                      url: block.video.url,
+                      mime_type: "video/mp4" // Default or extract if available
+                    };
+                  }
+                  return null;
+                })
+                .filter((item): item is Attachment => item !== null);
+              
+              if (extractedAttachments.length > 0) {
+                attachments = extractedAttachments;
+              }
+            }
+
             return {
               id: msg.message_id,
               role: msg.role as "user" | "assistant",
               content: textContent,
+              attachments: attachments,
               timestamp: new Date(msg.created_at),
               contentBlocks: msg.role === "assistant" ? msg.content_blocks : undefined,
             };
@@ -352,6 +403,18 @@ export function ChatView({ sessionId, className }: ChatViewProps) {
     sessionId,
   });
   
+  // File upload hook
+  const { 
+    files, 
+    addFiles, 
+    removeFile, 
+    clearFiles 
+  } = useFileUpload({
+    onUploadError: (file, error) => {
+      console.error(`Upload failed for ${file.name}:`, error);
+    }
+  });
+
   const isConnected = useMessageStore((state) => state.isConnected);
 
   // Watch for completed message (message_stop) and move to history
@@ -392,33 +455,79 @@ export function ChatView({ sessionId, className }: ChatViewProps) {
 
   // Handle send message
   const handleSendMessage = useCallback(
-    async (content: string, attachments?: Attachment[]) => {
+    async (content: string) => {
+      // Helper to identify images robustly (including extension check for cases where type is missing)
+      const isImageFile = (file: UploadedFile) => {
+        return file.type.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(file.name);
+      };
+
+      // Prepare attachments from uploaded files
+      const attachments: Attachment[] = files
+        .filter(f => f.uploadStatus === "success" && f.url)
+        .map(f => ({
+          type: isImageFile(f) ? "image" : 
+                f.type.startsWith("audio/") ? "audio" : 
+                f.type.startsWith("video/") ? "video" : "file",
+          url: f.url!,
+          filename: f.name,
+          mime_type: f.type,
+          preview: f.preview,
+          summary: f.analysis?.dense_summary
+        }));
+
       // Add user message to history
       const userMessage: ChatMessage = {
         id: `user_${Date.now()}`,
         role: "user",
-        content,
-        attachments,
+        content: content,
+        attachments: attachments.length > 0 ? attachments : undefined,
         timestamp: new Date(),
+        // Add contentBlocks for user message to support structural image rendering
+        contentBlocks: attachments.length > 0 ? attachments.map((att, index) => {
+          if (att.type === 'image') {
+            return {
+              content_id: `img_${index}_${Date.now()}`,
+              content_type: 'image',
+              sequence: index,
+              is_placeholder: false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              image: { url: att.url }
+            };
+          }
+          return {
+            content_id: `file_${index}_${Date.now()}`,
+            content_type: 'file',
+            sequence: index,
+            is_placeholder: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            file: { url: att.url, filename: att.filename, mime_type: att.mime_type }
+          };
+        }) : undefined
       };
       setMessages((prev) => [...prev, userMessage]);
+
+      // Clear files after preparing message
+      clearFiles();
 
       // Send to backend
       try {
         await sendMessage(
           content,
-          attachments?.map((a) => ({
+          attachments.length > 0 ? attachments.map((a) => ({
             type: a.type,
             url: a.url,
             filename: a.filename,
             mime_type: a.mime_type,
-          }))
+            summary: a.summary
+          })) : undefined
         );
       } catch (error) {
         console.error("Failed to send message:", error);
       }
     },
-    [sendMessage]
+    [sendMessage, files, clearFiles]
   );
 
   // Track content blocks to know if we have streaming content
@@ -516,6 +625,9 @@ export function ChatView({ sessionId, className }: ChatViewProps) {
       {/* Message Input */}
       <MessageInput
         onSend={handleSendMessage}
+        files={files}
+        onAddFiles={addFiles}
+        onRemoveFile={removeFile}
         disabled={isStreaming || isLoadingHistory}
         placeholder="Type your message..."
       />

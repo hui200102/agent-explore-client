@@ -88,6 +88,8 @@ export type ApiContentType =
   | 'json'
   | 'thinking'
   | 'plan'
+  | 'tool_call'
+  | 'tool_output'
   | 'execution_status'
   | 'evaluation_result';
 
@@ -100,10 +102,10 @@ export interface ContentBlock {
   created_at: string;
   updated_at: string;
   text?: string;
-  image?: { url?: string; base64?: string; format?: string };
-  audio?: { url?: string; base64?: string; format?: string };
-  video?: { url?: string; format?: string };
-  file?: { url?: string; filename?: string; mime_type?: string };
+  image?: { url?: string; base64?: string; format?: string; summary?: string; caption?: string };
+  audio?: { url?: string; base64?: string; format?: string; summary?: string };
+  video?: { url?: string; format?: string; summary?: string };
+  file?: { url?: string; filename?: string; mime_type?: string; summary?: string };
   metadata?: Record<string, unknown>;
 }
 

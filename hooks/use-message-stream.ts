@@ -21,7 +21,7 @@ interface UseMessageStreamOptions {
 interface UseMessageStreamReturn {
   isStreaming: boolean;
   error: string | null;
-  sendMessage: (content: string, attachments?: MessageAttachment[]) => Promise<void>;
+  sendMessage: (content: string, attachments?: MessageAttachment[], include_history?: boolean) => Promise<void>;
 }
 
 interface MessageAttachment {
@@ -29,17 +29,19 @@ interface MessageAttachment {
   url: string;
   filename?: string;
   mime_type?: string;
+  summary?: string;
 }
 
 interface SendMessageRequest {
   content_blocks: Array<{
     content_type: string;
     text?: string;
-    image?: { url: string };
+    image?: { url: string; summary?: string };
     file?: { url: string; filename?: string; mime_type?: string };
     audio?: { url: string };
     video?: { url: string };
   }>;
+  include_history?: boolean;
 }
 
 interface SendMessageResponse {
@@ -67,7 +69,8 @@ export function useMessageStream({
   // 发送消息
   const sendMessage = useCallback(async (
     content: string,
-    attachments?: MessageAttachment[]
+    attachments?: MessageAttachment[],
+    include_history?: boolean
   ): Promise<void> => {
     console.log('[sendMessage] Starting...');
     
@@ -94,7 +97,10 @@ export function useMessageStream({
           case 'image':
             contentBlocks.push({
               content_type: 'image',
-              image: { url: attachment.url },
+              image: { 
+                url: attachment.url,
+                summary: attachment.summary
+              },
             });
             break;
           case 'file':
@@ -124,13 +130,18 @@ export function useMessageStream({
     }
 
     try {
+      const requestBody: SendMessageRequest = { content_blocks: contentBlocks };
+      if (include_history !== undefined) {
+        requestBody.include_history = include_history;
+      }
+
       // 发送消息
       const response = await fetch(
         `${API_BASE_URL}/sessions/${sessionId}/messages`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content_blocks: contentBlocks }),
+          body: JSON.stringify(requestBody),
         }
       );
 

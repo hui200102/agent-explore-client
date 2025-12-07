@@ -243,20 +243,39 @@ export const UserMessage = memo(function UserMessage({
 }: UserMessageProps) {
   return (
     <MessageBubble role="user" className={className}>
-      <div className="bg-primary/90 text-primary-foreground rounded-2xl rounded-tr-sm px-5 py-3.5 shadow-sm max-w-[90%]">
-        <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{content}</p>
-        
-        {/* Attachments */}
+      <div className="flex flex-col items-end gap-2 max-w-[90%]">
+        {/* Attachments (Images) */}
         {attachments && attachments.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {attachments.map((attachment, index) => (
-              <div
-                key={index}
-                className="text-xs bg-primary-foreground/15 px-2.5 py-1 rounded-md font-medium backdrop-blur-sm"
-              >
-                {attachment.filename || attachment.type}
-              </div>
-            ))}
+          <div className="flex flex-wrap gap-2 justify-end">
+            {attachments.map((attachment, index) => {
+              if (attachment.type === "image") {
+                return (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img 
+                    key={index}
+                    src={attachment.url} 
+                    alt={attachment.filename || "Image attachment"} 
+                    className="max-w-[200px] max-h-[200px] rounded-lg border shadow-sm object-cover bg-background"
+                  />
+                );
+              }
+              // Other attachments rendered as chips
+              return (
+                 <div
+                  key={index}
+                  className="text-xs bg-muted px-2.5 py-1 rounded-md font-medium border"
+                >
+                  {attachment.filename || attachment.type}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Text Content */}
+        {content && (
+          <div className="bg-primary/90 text-primary-foreground rounded-2xl rounded-tr-sm px-5 py-3.5 shadow-sm">
+            <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{content}</p>
           </div>
         )}
       </div>
