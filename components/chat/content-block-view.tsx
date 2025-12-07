@@ -94,6 +94,22 @@ const TextContent = memo(function TextContent({
               </a>
             );
           },
+          // Custom image rendering
+          img({ src, alt, ...props }) {
+            return (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={src}
+                alt={alt}
+                className="max-w-full h-auto rounded-lg"
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "400px",
+                }}
+                {...props}
+              />
+            );
+          },
         }}
       >
         {text}
@@ -114,6 +130,7 @@ interface ImageContentProps {
     format?: string;
     width?: number;
     height?: number;
+    summary?: string;
   };
   className?: string;
 }
@@ -141,8 +158,8 @@ const ImageContent = memo(function ImageContent({
         alt="Content image"
         className="max-w-full h-auto rounded-lg"
         style={{
-          maxWidth: image.width ? `${image.width}px` : undefined,
-          maxHeight: image.height ? `${image.height}px` : "400px",
+          maxWidth: "100%",
+          maxHeight: "400px",
         }}
       />
     </div>
@@ -669,6 +686,29 @@ export const ContentBlockView = memo(function ContentBlockView({
       );
 
     case "image":
+      console.log("block.image", block.image);
+      // If it's a tool-generated image, show as a link/summary
+      if (block.metadata?.tool_call_id || block.metadata?.tool_name) {
+        return block.image ? (
+          <div className={cn("flex items-center gap-2 p-3 bg-muted/50 rounded-lg text-sm max-w-full overflow-hidden", className)}>
+            <ImageIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <a 
+              href={block.image.url} 
+              target="_blank" 
+              rel="noreferrer" 
+              className="text-primary hover:underline font-medium truncate"
+            >
+              Generated Image
+            </a>
+            {block.image.summary && (
+              <span className="text-muted-foreground truncate border-l pl-2 ml-2 text-xs flex-1">
+                {block.image.summary}
+              </span>
+            )}
+          </div>
+        ) : null;
+      }
+
       return block.image ? (
         <ImageContent image={block.image} className={className} />
       ) : null;

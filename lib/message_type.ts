@@ -46,6 +46,7 @@ export interface ImageContent {
   width?: number;
   height?: number;
   size?: number;
+  summary?: string;
 }
 
 export interface AudioContent {
