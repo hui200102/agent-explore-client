@@ -589,6 +589,7 @@ eventSource.onerror = (error) => {
   "content_id": "content_001",
   "content_type": "image",
   "is_placeholder": false,
+  "is_intermediate": false,
   "image": {
     "url": "https://example.com/image.jpg",
     "data": "base64编码的图片数据（可选）",

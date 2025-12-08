@@ -29,18 +29,46 @@ export const HistoryMessage = memo(function HistoryMessage({
 
   // Filter blocks
   const processBlocks = contentBlocks?.filter(
-    (block) => block.task_id || block.content_type === "thinking" || block.content_type === "plan"
+    (block) =>
+      block.task_id ||
+      block.content_type === "thinking" ||
+      block.content_type === "plan"
   );
-  
+
   const finalBlocks = contentBlocks?.filter(
-    (block) => !block.task_id && block.content_type !== "thinking" && block.content_type !== "plan"
+    (block) =>
+      !block.task_id &&
+      block.content_type !== "thinking" &&
+      block.content_type !== "plan"
   );
 
   const hasProcess = processBlocks && processBlocks.length > 0;
   const hasFinal = finalBlocks && finalBlocks.length > 0;
 
+  const isHiddenBlock = (block: ContentBlock) => {
+    const isHideTypes = [
+      "thinking",
+      "plan",
+      "execution_status",
+      "evaluation_result",
+      "tool_call",
+      "tool_output",
+    ].includes(block.content_type);
+
+    if (isHideTypes || block.is_intermediate) {
+      return true;
+    }
+
+    return false;
+  }
+
   return (
-    <div className={cn("flex gap-4 px-4 py-6 hover:bg-muted/20 transition-colors", className)}>
+    <div
+      className={cn(
+        "flex gap-4 px-4 py-6 hover:bg-muted/20 transition-colors",
+        className
+      )}
+    >
       {/* Avatar */}
       <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-sm ring-1 ring-white/20">
         <Bot className="h-5 w-5" />
@@ -67,7 +95,7 @@ export const HistoryMessage = memo(function HistoryMessage({
                     )}
                   </div>
                 </button>
-                
+
                 {isProcessExpanded && (
                   <div className="p-3 pt-0 space-y-3 border-t border-border/50 mt-2">
                     {processBlocks.map((block) => (
@@ -85,15 +113,24 @@ export const HistoryMessage = memo(function HistoryMessage({
             {/* Final Output */}
             {hasFinal ? (
               <div className="space-y-4">
-                {finalBlocks.map((block) => (
-                  <ContentBlockView
-                    key={block.content_id}
-                    block={block}
-                    isStreaming={false}
-                  />
-                ))}
+                {finalBlocks.map((block) => {
+                  if (
+                    isHiddenBlock(block)
+                  ) {
+                    return null;
+                  }
+                  
+                  return (
+                    <ContentBlockView
+                      key={block.content_id}
+                      block={block}
+                      isStreaming={false}
+                    />
+                  );
+                })}
               </div>
-            ) : !hasProcess && (
+            ) : (
+              !hasProcess &&
               // Fallback if somehow we have blocks but no final blocks and no process blocks?
               // Or if we only have process blocks (and they are collapsed), we might want to show something?
               // If only process blocks exist, user might want to see them or see "No final output".
@@ -123,4 +160,3 @@ export const HistoryMessage = memo(function HistoryMessage({
 });
 
 export default HistoryMessage;
-

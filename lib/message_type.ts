@@ -107,6 +107,7 @@ export interface ContentBlock {
   content_type: ContentType;
   sequence: number;
   is_placeholder: boolean;
+  is_intermediate?: boolean;
   task_id?: string;          // 关联的任务 ID
   created_at: string;
   updated_at: string;

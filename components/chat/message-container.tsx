@@ -1,19 +1,11 @@
 "use client";
 
-import { memo, useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { memo, useEffect, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useMessageStore } from "@/stores/message-store";
-import { TaskCard, CompactTaskCard } from "./task-card";
 import { ContentBlockView } from "./content-block-view";
-import type { Task, ContentBlock } from "@/lib/message_type";
-import {
-  Bot,
-  User,
-  ChevronDown,
-  ChevronUp,
-  AlertCircle,
-  Loader2,
-} from "lucide-react";
+import type { ContentBlock } from "@/lib/message_type";
+import { Bot, User, AlertCircle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 // ============ Message Bubble ============
@@ -48,11 +40,7 @@ const MessageBubble = memo(function MessageBubble({
             : "bg-gradient-to-br from-indigo-500 to-purple-600 text-white ring-1 ring-white/20"
         )}
       >
-        {isUser ? (
-          <User className="h-5 w-5" />
-        ) : (
-          <Bot className="h-5 w-5" />
-        )}
+        {isUser ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
       </div>
 
       {/* Content */}
@@ -83,12 +71,31 @@ const MessageContentStream = memo(function MessageContentStream({
 }: MessageContentStreamProps) {
   if (contentOrder.length === 0) return null;
 
+  const isHiddenBlock = (block: ContentBlock) => {
+    const isHideTypes = [
+      "thinking",
+      "plan",
+      "execution_status",
+      "evaluation_result",
+      "tool_call",
+      "tool_output",
+    ].includes(block.content_type);
+    console.log("block.metadata?.type", block.metadata?.type);
+
+    if (isHideTypes) {
+      return true;
+    }
+
+    return false;
+  };
   return (
     <div className="space-y-2">
       {contentOrder.map((id, index) => {
         const block = contentBlocks[id];
-        if (!block) return null;
-        
+        if (!isStreaming && (isHiddenBlock(block) || block.is_intermediate)) {
+          return null;
+        }
+
         return (
           <ContentBlockView
             key={id}
@@ -156,13 +163,12 @@ export const MessageContainer = memo(function MessageContainer({
   autoScroll = true,
 }: MessageContainerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  
+
   // Select stable references from store (objects/primitives that don't change reference)
   const activeTasksMap = useMessageStore((state) => state.activeTasks);
   const completedTasks = useMessageStore((state) => state.completedTasks);
   const contentBlocks = useMessageStore((state) => state.contentBlocks);
   const contentOrder = useMessageStore((state) => state.contentOrder);
-  const taskContents = useMessageStore((state) => state.taskContents);
   const isStreaming = useMessageStore((state) => state.isStreaming);
   const error = useMessageStore((state) => state.error);
   const clearError = useMessageStore((state) => state.clearError);
@@ -185,11 +191,6 @@ export const MessageContainer = memo(function MessageContainer({
     completedTasks.length > 0 ||
     contentOrder.length > 0;
 
-  // Show container if:
-  // 1. Currently streaming
-  // 2. Has content (tasks or content blocks)
-  // 3. Has error to display
-  // This ensures completed messages stay visible until added to history
   if (!isStreaming && !hasContent && !error) {
     return null;
   }
@@ -201,7 +202,6 @@ export const MessageContainer = memo(function MessageContainer({
           {/* Assistant Message Bubble */}
           <MessageBubble role="assistant">
             <div className="space-y-5">
-              
               {/* Main Content Stream (Thoughts, Plans, Tools, Text) */}
               <MessageContentStream
                 contentOrder={contentOrder}
@@ -251,17 +251,17 @@ export const UserMessage = memo(function UserMessage({
               if (attachment.type === "image") {
                 return (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img 
+                  <img
                     key={index}
-                    src={attachment.url} 
-                    alt={attachment.filename || "Image attachment"} 
+                    src={attachment.url}
+                    alt={attachment.filename || "Image attachment"}
                     className="max-w-[200px] max-h-[200px] rounded-lg border shadow-sm object-cover bg-background"
                   />
                 );
               }
               // Other attachments rendered as chips
               return (
-                 <div
+                <div
                   key={index}
                   className="text-xs bg-muted px-2.5 py-1 rounded-md font-medium border"
                 >
@@ -275,7 +275,9 @@ export const UserMessage = memo(function UserMessage({
         {/* Text Content */}
         {content && (
           <div className="bg-primary/90 text-primary-foreground rounded-2xl rounded-tr-sm px-5 py-3.5 shadow-sm">
-            <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{content}</p>
+            <p className="text-[15px] leading-relaxed whitespace-pre-wrap">
+              {content}
+            </p>
           </div>
         )}
       </div>
@@ -284,4 +286,3 @@ export const UserMessage = memo(function UserMessage({
 });
 
 export default MessageContainer;
-

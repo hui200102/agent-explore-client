@@ -686,9 +686,7 @@ export const ContentBlockView = memo(function ContentBlockView({
       );
 
     case "image":
-      console.log("block.image", block.image);
-      // If it's a tool-generated image, show as a link/summary
-      if (block.metadata?.tool_call_id || block.metadata?.tool_name) {
+      if (block.is_intermediate) {
         return block.image ? (
           <div className={cn("flex items-center gap-2 p-3 bg-muted/50 rounded-lg text-sm max-w-full overflow-hidden", className)}>
             <ImageIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
