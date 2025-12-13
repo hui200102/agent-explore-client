@@ -8,6 +8,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import Link from "next/link"
 import { 
   Loader2, 
   Trash2, 
@@ -183,6 +184,9 @@ export default function MemoryAdminPage() {
           )}
         </h1>
         <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/admin/knowledge">Add Knowledge</Link>
+          </Button>
           <Button variant="outline" onClick={() => refetch()} disabled={isLoading || isFetchingNextPage}>
             <RefreshCw className={`h-4 w-4 mr-2 ${(isLoading || isFetchingNextPage) ? 'animate-spin' : ''}`} />
             Refresh

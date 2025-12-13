@@ -327,10 +327,15 @@ export const useMessageStore = create<MessageStore>()((set, get) => ({
   // ============ Connection Management ============
 
   setConnected: (connected: boolean) => {
-    set((state) => ({
+    // NOTE:
+    // - `isConnected` only reflects SSE transport connectivity.
+    // - `isStreaming` reflects whether the current message is still in-progress.
+    // A transient SSE disconnect should NOT flip `isStreaming` to false, otherwise:
+    // - UI switches to "non-streaming" mode and hides many blocks mid-run
+    // - auto-reconnect logic may stop because it thinks streaming ended
+    set({
       isConnected: connected,
-      isStreaming: connected ? state.isStreaming : false,
-    }));
+    });
   },
 
   setStreaming: (streaming: boolean) => {

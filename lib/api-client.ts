@@ -272,6 +272,46 @@ export interface CreateMemoryRequest {
   metadata?: Record<string, unknown>;
 }
 
+// ============= Knowledge Base Interfaces =============
+
+export type KnowledgeType =
+  | "workflow"
+  | "best_practice"
+  | "rule"
+  | "solution"
+  | "architecture"
+  | "coding_style";
+
+export type KnowledgePriority = "critical" | "high" | "medium" | "low";
+
+export interface CreateKnowledgeRequest {
+  title: string;
+  content: string;
+  type: KnowledgeType;
+  priority?: KnowledgePriority;
+  tags?: string[];
+  applies_to?: string[];
+  category?: string;
+  source?: string;
+  author?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface KnowledgeResponse {
+  knowledge_id: string;
+  title: string;
+  content: string;
+  type: KnowledgeType | string;
+  priority: KnowledgePriority | string;
+  status: string;
+  tags: string[];
+  applies_to: string[];
+  category?: string | null;
+  usage_count: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
 // ============= API Client =============
 
 const AGENT_API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "/api/v1";
@@ -539,6 +579,27 @@ export class ApiClient {
       const error = await response.json().catch(() => ({ detail: "Failed to delete memory" }));
       throw new Error(error.detail || "Failed to delete memory");
     }
+    return response.json();
+  }
+
+  // ============= Knowledge Base Management =============
+
+  /**
+   * Create a knowledge base item
+   * POST /api/v1/knowledge/create
+   */
+  async createKnowledge(request: CreateKnowledgeRequest): Promise<KnowledgeResponse> {
+    const response = await fetch(`${this.agentBaseUrl}/knowledge/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to create knowledge" }));
+      throw new Error(error.detail || "Failed to create knowledge");
+    }
+
     return response.json();
   }
 
