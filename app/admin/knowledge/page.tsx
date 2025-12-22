@@ -107,12 +107,19 @@ export default function KnowledgeAdminPage() {
           <BookPlus className="h-6 w-6 text-blue-500" />
           <h1 className="text-2xl font-bold">Add Knowledge</h1>
         </div>
-        <Button variant="outline" asChild>
-          <Link href="/admin/memories" className="flex items-center gap-2">
-            <ArrowLeft className="h-4 w-4" />
-            Back to Memories
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/admin/knowledge-list" className="flex items-center gap-2">
+              View List
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/admin/memories" className="flex items-center gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Memories
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {successMessage && (

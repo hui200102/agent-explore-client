@@ -603,6 +603,77 @@ export class ApiClient {
     return response.json();
   }
 
+  /**
+   * List all knowledge items
+   * GET /api/v1/knowledge/list/all
+   */
+  async listKnowledge(params?: { status?: string; limit?: number }): Promise<{ total: number; items: KnowledgeResponse[] }> {
+    const queryParams = new URLSearchParams();
+    if (params?.status) queryParams.append("status", params.status);
+    if (params?.limit !== undefined) queryParams.append("limit", params.limit.toString());
+
+    const url = `${this.agentBaseUrl}/knowledge/list/all${queryParams.toString() ? `?${queryParams}` : ""}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to list knowledge" }));
+      throw new Error(error.detail || "Failed to list knowledge");
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Get a single knowledge item
+   * GET /api/v1/knowledge/{knowledge_id}
+   */
+  async getKnowledge(knowledgeId: string): Promise<KnowledgeResponse> {
+    const response = await fetch(`${this.agentBaseUrl}/knowledge/${knowledgeId}`);
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to get knowledge" }));
+      throw new Error(error.detail || "Failed to get knowledge");
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Update a knowledge item
+   * PUT /api/v1/knowledge/{knowledge_id}
+   */
+  async updateKnowledge(knowledgeId: string, updates: Partial<CreateKnowledgeRequest> & { status?: string }): Promise<{ status: string; knowledge_id: string }> {
+    const response = await fetch(`${this.agentBaseUrl}/knowledge/${knowledgeId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to update knowledge" }));
+      throw new Error(error.detail || "Failed to update knowledge");
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Delete a knowledge item
+   * DELETE /api/v1/knowledge/{knowledge_id}
+   */
+  async deleteKnowledge(knowledgeId: string): Promise<{ status: string; knowledge_id: string }> {
+    const response = await fetch(`${this.agentBaseUrl}/knowledge/${knowledgeId}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Failed to delete knowledge" }));
+      throw new Error(error.detail || "Failed to delete knowledge");
+    }
+
+    return response.json();
+  }
+
   // ============= Health Check & Metrics =============
 
   /**
