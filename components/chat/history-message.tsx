@@ -99,9 +99,9 @@ export const HistoryMessage = memo(function HistoryMessage({
                 {isProcessExpanded && (
                   <div className="p-3 pt-0 space-y-3 border-t border-border/50 mt-2">
                     {processBlocks.map((block) => {
-                      if (isHiddenBlock(block)) {
-                        return null;
-                      }
+                      // if (isHiddenBlock(block)) {
+                      //   return null;
+                      // }
                       return (
                         <ContentBlockView
                           key={block.content_id}
