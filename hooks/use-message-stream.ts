@@ -37,9 +37,9 @@ interface SendMessageRequest {
     content_type: string;
     text?: string;
     image?: { url: string; summary?: string };
-    file?: { url: string; filename?: string; mime_type?: string };
-    audio?: { url: string };
-    video?: { url: string };
+    file?: { url: string; filename?: string; mime_type?: string; summary?: string };
+    audio?: { url: string; summary?: string };
+    video?: { url: string; summary?: string };
   }>;
   include_history?: boolean;
 }
@@ -110,19 +110,26 @@ export function useMessageStream({
                 url: attachment.url,
                 filename: attachment.filename,
                 mime_type: attachment.mime_type,
+                summary: attachment.summary
               },
             });
             break;
           case 'audio':
             contentBlocks.push({
               content_type: 'audio',
-              audio: { url: attachment.url },
+              audio: { 
+                url: attachment.url,
+                summary: attachment.summary
+              },
             });
             break;
           case 'video':
             contentBlocks.push({
               content_type: 'video',
-              video: { url: attachment.url },
+              video: { 
+                url: attachment.url,
+                summary: attachment.summary
+              },
             });
             break;
         }
