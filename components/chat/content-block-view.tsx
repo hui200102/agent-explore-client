@@ -550,6 +550,11 @@ const ToolCallContent = memo(function ToolCallContent({
   );
 });
 
+interface ToolOutputContentProps {
+  block: ContentBlock;
+  className?: string;
+}
+
 const ToolOutputContent = memo(function ToolOutputContent({
   block,
   className,

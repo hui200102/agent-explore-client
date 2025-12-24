@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { useMessageStore } from "@/stores/message-store";
 import { ContentBlockView } from "./content-block-view";
 import type { ContentBlock } from "@/lib/message_type";
-import { Bot, AlertCircle, Paperclip } from "lucide-react";
+import { Bot, AlertCircle, Paperclip, User } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 // ============ Message Bubble ============
@@ -31,8 +31,8 @@ const MessageBubble = memo(function MessageBubble({
         className
       )}
     >
-      {/* Avatar - Only for assistant */}
-      {!isUser && (
+      {/* Avatar */}
+      {!isUser ? (
         <div
           className={cn(
             "flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow-sm",
@@ -40,6 +40,15 @@ const MessageBubble = memo(function MessageBubble({
           )}
         >
           <Bot className="h-4 w-4" />
+        </div>
+      ) : (
+        <div
+          className={cn(
+            "flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow-sm",
+            "bg-gradient-to-br from-slate-600 to-slate-800 text-white ring-1 ring-white/20"
+          )}
+        >
+          <User className="h-4 w-4" />
         </div>
       )}
 

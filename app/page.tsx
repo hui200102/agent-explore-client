@@ -5,8 +5,9 @@ import { SessionSidebar, ChatView } from "@/components/chat"
 import { useSessionList } from "@/hooks/use-session-list"
 import { apiClient } from "@/lib/api-client"
 import { SessionStorage } from "@/lib/session-storage"
-import { Loader2, BarChart3, Bot, BookPlus } from "lucide-react"
+import { Loader2, Bot, Plus } from "lucide-react"
 import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 export default function Home() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
@@ -106,7 +107,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen bg-white dark:bg-zinc-950">
+    <div className="flex h-screen bg-background text-foreground overflow-hidden font-sans selection:bg-primary/5">
       <div className="w-full h-full flex overflow-hidden">
         {/* Session Sidebar */}
         <SessionSidebar
@@ -121,52 +122,62 @@ export default function Home() {
           onUpdateSession={handleUpdateSession}
           onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           onRefresh={sessionList.refreshAll}
-          showFilter={false}
         />
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col overflow-hidden border-l border-zinc-200 dark:border-zinc-800">
+        <div className="flex-1 flex flex-col overflow-hidden bg-background relative">
           {/* Top Navigation Bar */}
-          <div className="flex items-center justify-end px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
-            <Link
-              href="/admin/knowledge"
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-primary dark:hover:text-primary transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800"
-            >
-              <BookPlus className="h-4 w-4" />
-              Add Knowledge
-            </Link>
-            <Link
-              href="/stats"
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-primary dark:hover:text-primary transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800"
-            >
-              <BarChart3 className="h-4 w-4" />
-              Statistics
-            </Link>
-          </div>
+          <header className="flex items-center justify-between px-6 h-14 z-20">
+            <div className="flex items-center gap-1">
+              <span className="text-sm font-semibold text-foreground/80 px-2">AI Agent</span>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4">
+                <Link
+                  href="/admin/knowledge"
+                  className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Knowledge
+                </Link>
+                <Link
+                  href="/stats"
+                  className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Stats
+                </Link>
+              </div>
+              
+              <div className="h-7 w-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 border border-border/50">
+                <Bot className="h-4 w-4" />
+              </div>
+            </div>
+          </header>
 
           {/* Session Content */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <main className="flex-1 flex flex-col overflow-hidden relative">
             {currentSessionId ? (
               <ChatView sessionId={currentSessionId} className="flex-1" />
             ) : (
-              <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-muted/20 to-background">
-                <div className="text-center space-y-6 max-w-md animate-fade-in-up px-6">
-                  <div className="relative">
-                    <div className="absolute inset-0 blur-2xl bg-primary/20 rounded-full animate-pulse"></div>
-                    <div className="mx-auto w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-2xl shadow-primary/30 relative">
-                      <Bot className="h-10 w-10 text-primary-foreground" />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-foreground mb-3">Welcome</p>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      Select a session from the sidebar or create a new one to get started.
-                    </p>
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center space-y-6 max-w-lg animate-slide-up px-6">
+                  <h1 className="text-4xl font-medium tracking-tight text-foreground">
+                    How can I help you today?
+                  </h1>
+                  
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button 
+                      onClick={handleCreateSession}
+                      className="rounded-2xl h-11 px-6 bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 hover:opacity-90 transition-all shadow-sm font-medium"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Start a new chat
+                    </Button>
                   </div>
                 </div>
               </div>
             )}
-          </div>
+          </main>
         </div>
       </div>
     </div>
