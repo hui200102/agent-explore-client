@@ -546,7 +546,7 @@ const ToolCallContent = memo(function ToolCallContent({
 
       {isExpanded && (
         <div className="mt-2 ml-5 animate-in slide-in-from-top-2 duration-200">
-          <div className="bg-muted/30 rounded-md p-3 text-xs font-mono overflow-x-auto border border-muted/50 pl-3 border-l-2 border-l-muted-foreground/20">
+          <div className="bg-muted/30 rounded-md p-3 text-xs font-mono overflow-x-auto border border-muted/50 pl-3 border-l-2 border-l-muted-foreground/20 max-h-[300px] overflow-y-auto">
             <pre className="text-muted-foreground/80">
               {JSON.stringify(toolArgs, null, 2)}
             </pre>

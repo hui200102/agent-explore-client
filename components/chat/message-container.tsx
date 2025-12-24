@@ -64,43 +64,91 @@ interface MessageContentStreamProps {
   isStreaming: boolean;
 }
 
+const ToolBlocksContainer = memo(function ToolBlocksContainer({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [children]);
+
+  return (
+    <div
+      ref={scrollRef}
+      className="max-h-[260px] overflow-y-auto border border-indigo-500/10 rounded-xl bg-indigo-50/5 dark:bg-indigo-950/10 p-2 space-y-1 scroll-smooth scrollbar-thin scrollbar-thumb-indigo-500/20"
+    >
+      {children}
+    </div>
+  );
+});
+
 const MessageContentStream = memo(function MessageContentStream({
   contentOrder,
   contentBlocks,
   isStreaming,
 }: MessageContentStreamProps) {
+  const isGroupedBlock = (block: ContentBlock) => {
+    return ["tool_call", "tool_output"].includes(block.content_type);
+  };
+
+  // Group blocks: consecutive tool blocks go together
+  const renderGroups = useMemo(() => {
+    const groups: { type: "single" | "tools"; ids: string[] }[] = [];
+    let currentGroup: { type: "single" | "tools"; ids: string[] } | null = null;
+
+    contentOrder.forEach((id) => {
+      const block = contentBlocks[id];
+      const grouped = isGroupedBlock(block);
+
+      if (grouped) {
+        if (currentGroup?.type === "tools") {
+          currentGroup.ids.push(id);
+        } else {
+          currentGroup = { type: "tools", ids: [id] };
+          groups.push(currentGroup);
+        }
+      } else {
+        currentGroup = { type: "single", ids: [id] };
+        groups.push(currentGroup);
+      }
+    });
+
+    return groups;
+  }, [contentOrder, contentBlocks]);
+
   if (contentOrder.length === 0) return null;
 
-  const isHiddenBlock = (block: ContentBlock) => {
-    const isHideTypes = [
-      "thinking",
-      "plan",
-      "execution_status",
-      "evaluation_result",
-      "tool_call",
-      "tool_output",
-    ].includes(block.content_type);
-    console.log("block.metadata?.type", block.metadata?.type);
-
-    if (isHideTypes) {
-      return true;
-    }
-
-    return false;
-  };
   return (
     <div className="space-y-2">
-      {contentOrder.map((id, index) => {
-        const block = contentBlocks[id];
-        if (!isStreaming && (isHiddenBlock(block) || block.is_intermediate)) {
-          return null;
+      {renderGroups.map((group, groupIndex) => {
+        if (group.type === "tools") {
+          return (
+            <ToolBlocksContainer key={`group-${groupIndex}`}>
+              {group.ids.map((id) => (
+                <ContentBlockView
+                  key={id}
+                  block={contentBlocks[id]}
+                  isStreaming={isStreaming && id === contentOrder[contentOrder.length - 1]}
+                />
+              ))}
+            </ToolBlocksContainer>
+          );
         }
+
+        // Single block
+        const id = group.ids[0];
+        const block = contentBlocks[id];
 
         return (
           <ContentBlockView
             key={id}
             block={block}
-            isStreaming={isStreaming && index === contentOrder.length - 1}
+            isStreaming={isStreaming && id === contentOrder[contentOrder.length - 1]}
           />
         );
       })}
