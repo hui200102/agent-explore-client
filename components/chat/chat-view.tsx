@@ -116,15 +116,15 @@ const MessageInput = memo(function MessageInput({
   );
 
   return (
-    <div className={cn("bg-background/80 backdrop-blur-md pb-6 px-4 pt-2", className)}>
+    <div className={cn("glass z-10 mx-auto w-full max-w-3xl rounded-2xl mb-6 p-1", className)}>
       {/* Attachments Preview */}
       {files.length > 0 && (
-        <div className="max-w-4xl mx-auto mb-3 flex flex-wrap gap-2 animate-fade-in-up">
+        <div className="px-3 pt-3 pb-1 flex flex-wrap gap-2 animate-fade-in-up">
           {files.map((file) => (
             <div
               key={file.id}
               className={cn(
-                "relative group flex items-center gap-2 bg-muted/50 backdrop-blur-sm rounded-xl px-3 py-2 border transition-all hover:bg-muted",
+                "relative group flex items-center gap-2 bg-background/50 backdrop-blur-sm rounded-lg px-3 py-2 border transition-all hover:bg-background",
                 file.uploadStatus === "error" || file.analysisStatus === "error" ? "border-destructive/30 bg-destructive/5" : "border-border/50"
               )}
             >
@@ -181,87 +181,80 @@ const MessageInput = memo(function MessageInput({
       )}
 
       {/* Input Area */}
-      <div className="max-w-4xl mx-auto relative">
-        <div
-          className={cn(
-            "flex flex-col gap-2 rounded-[24px] border border-border/60 bg-muted/30 backdrop-blur-sm p-2 transition-all duration-200",
-            isFocused ? "border-primary/30 bg-background shadow-[0_0_20px_rgba(0,0,0,0.05)] ring-1 ring-primary/10" : "hover:border-border"
-          )}
-        >
-          {/* Textarea */}
-          <Textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            placeholder={placeholder}
-            disabled={disabled}
-            className="flex-1 min-h-[44px] max-h-[200px] resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-3 bg-transparent text-[15px] leading-relaxed"
-            rows={1}
-          />
+      <div className="relative flex flex-col">
+        {/* Textarea */}
+        <Textarea
+          ref={textareaRef}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          placeholder={placeholder}
+          disabled={disabled}
+          className="flex-1 min-h-[52px] max-h-[200px] resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-4 bg-transparent text-[15px] leading-relaxed placeholder:text-muted-foreground/40"
+          rows={1}
+        />
 
-          <div className="flex items-center justify-between px-1 pb-1">
-            <div className="flex items-center gap-1">
-              {/* File Upload Button */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt"
-                className="hidden"
-                onChange={handleFileSelect}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={disabled || isUploading}
-                title="Upload files"
-              >
-                <Plus className="h-5 w-5" />
-              </Button>
+        <div className="flex items-center justify-between px-2 pb-2">
+          <div className="flex items-center gap-1">
+            {/* File Upload Button */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled || isUploading}
+              title="Upload files"
+            >
+              <Plus className="h-5 w-5" />
+            </Button>
 
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                disabled={disabled}
-                title="Agent Tools"
-              >
-                <Wrench className="h-4 w-4" />
-              </Button>
-            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              disabled={disabled}
+              title="Agent Tools"
+            >
+              <Wrench className="h-4 w-4" />
+            </Button>
+          </div>
 
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] text-muted-foreground/60 hidden sm:inline-block">
-                Shift + Enter for new line
-              </span>
-              
-              {/* Send Button */}
-              <Button
-                type="button"
-                size="icon"
-                className={cn(
-                  "h-8 w-8 rounded-full transition-all duration-200",
-                  content.trim() || files.length > 0 
-                    ? "bg-primary text-primary-foreground shadow-sm" 
-                    : "bg-muted text-muted-foreground/40 cursor-not-allowed"
-                )}
-                onClick={handleSubmit}
-                disabled={disabled || (!content.trim() && files.length === 0) || isUploading}
-              >
-                {disabled || isUploading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            </div>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] text-muted-foreground/40 hidden sm:inline-block font-medium">
+              Return to send
+            </span>
+            
+            {/* Send Button */}
+            <Button
+              type="button"
+              size="icon"
+              className={cn(
+                "h-8 w-8 rounded-lg transition-all duration-200",
+                content.trim() || files.length > 0 
+                  ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90" 
+                  : "bg-muted text-muted-foreground/40 cursor-not-allowed"
+              )}
+              onClick={handleSubmit}
+              disabled={disabled || (!content.trim() && files.length === 0) || isUploading}
+            >
+              {disabled || isUploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
+            </Button>
           </div>
         </div>
       </div>

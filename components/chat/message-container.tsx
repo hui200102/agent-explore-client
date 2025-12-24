@@ -26,7 +26,7 @@ const MessageBubble = memo(function MessageBubble({
   return (
     <div
       className={cn(
-        "flex gap-4 px-6 py-8 transition-all duration-300",
+        "flex gap-4 px-4 py-2 transition-all duration-300 w-full max-w-3xl mx-auto",
         isUser ? "flex-row-reverse" : "flex-row",
         className
       )}
@@ -36,26 +36,20 @@ const MessageBubble = memo(function MessageBubble({
         <div
           className={cn(
             "flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow-sm",
-            "bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white ring-1 ring-white/20"
+            "bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white ring-1 ring-white/20 mt-1"
           )}
         >
           <Bot className="h-4 w-4" />
         </div>
       ) : (
-        <div
-          className={cn(
-            "flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow-sm",
-            "bg-gradient-to-br from-slate-600 to-slate-800 text-white ring-1 ring-white/20"
-          )}
-        >
-          <User className="h-4 w-4" />
-        </div>
+        <div className="flex-shrink-0 w-8 h-8" /> 
+        // Placeholder for user avatar space if we want alignment, or just remove if we want it flush
       )}
 
       {/* Content */}
       <div
         className={cn(
-          "flex-1 min-w-0 max-w-3xl",
+          "flex-1 min-w-0",
           isUser ? "flex flex-col items-end" : "space-y-4"
         )}
       >
@@ -300,10 +294,10 @@ export const UserMessage = memo(function UserMessage({
 }: UserMessageProps) {
   return (
     <MessageBubble role="user" className={className}>
-      <div className="flex flex-col items-end gap-3 max-w-[85%]">
+      <div className="flex flex-col items-end gap-2 max-w-[90%] sm:max-w-[85%]">
         {/* Attachments (Images) */}
         {attachments && attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 justify-end">
+          <div className="flex flex-wrap gap-2 justify-end mb-1">
             {attachments.map((attachment, index) => {
               if (attachment.type === "image") {
                 return (
@@ -312,7 +306,7 @@ export const UserMessage = memo(function UserMessage({
                     key={index}
                     src={attachment.url}
                     alt={attachment.filename || "Image attachment"}
-                    className="max-w-[240px] max-h-[240px] rounded-2xl border-2 border-background shadow-md object-cover animate-bounce-in"
+                    className="max-w-[200px] max-h-[200px] rounded-xl border border-border/50 shadow-sm object-cover"
                   />
                 );
               }
@@ -320,7 +314,7 @@ export const UserMessage = memo(function UserMessage({
               return (
                 <div
                   key={index}
-                  className="flex items-center gap-2 text-[11px] bg-muted/80 backdrop-blur-sm px-3 py-1.5 rounded-full font-medium border border-border/50 shadow-sm"
+                  className="flex items-center gap-2 text-[11px] bg-background/80 backdrop-blur-sm px-3 py-1.5 rounded-full font-medium border border-border/50 shadow-sm"
                 >
                   <Paperclip className="h-3 w-3 text-muted-foreground" />
                   {attachment.filename || attachment.type}
@@ -332,7 +326,7 @@ export const UserMessage = memo(function UserMessage({
 
         {/* Text Content */}
         {content && (
-          <div className="bg-primary text-primary-foreground rounded-3xl rounded-tr-lg px-6 py-3.5 shadow-md">
+          <div className="bg-primary text-primary-foreground rounded-2xl rounded-tr-md px-5 py-3 shadow-sm">
             <p className="text-[15px] leading-relaxed whitespace-pre-wrap">
               {content}
             </p>

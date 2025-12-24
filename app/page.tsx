@@ -125,31 +125,31 @@ export default function Home() {
         />
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-background relative">
+        <div className="flex-1 flex flex-col overflow-hidden bg-background/50 relative">
           {/* Top Navigation Bar */}
-          <header className="flex items-center justify-between px-6 h-14 z-20">
-            <div className="flex items-center gap-1">
-              <span className="text-sm font-semibold text-foreground/80 px-2">AI Agent</span>
+          <header className="flex items-center justify-between px-6 h-14 z-20 border-b border-border/40 bg-background/30 backdrop-blur-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground/80 tracking-tight">AI Workspace</span>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-4">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-6">
                 <Link
                   href="/admin/knowledge"
-                  className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-[13px] font-medium text-muted-foreground/70 hover:text-foreground transition-colors"
                 >
                   Knowledge
                 </Link>
                 <Link
                   href="/stats"
-                  className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-[13px] font-medium text-muted-foreground/70 hover:text-foreground transition-colors"
                 >
                   Stats
                 </Link>
               </div>
               
-              <div className="h-7 w-7 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 border border-border/50">
-                <Bot className="h-4 w-4" />
+              <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-indigo-500/10 to-purple-500/10 flex items-center justify-center border border-indigo-500/20 shadow-sm">
+                <Bot className="h-4 w-4 text-indigo-500/70" />
               </div>
             </div>
           </header>
@@ -159,18 +159,26 @@ export default function Home() {
             {currentSessionId ? (
               <ChatView sessionId={currentSessionId} className="flex-1" />
             ) : (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center space-y-6 max-w-lg animate-slide-up px-6">
-                  <h1 className="text-4xl font-medium tracking-tight text-foreground">
-                    How can I help you today?
-                  </h1>
+              <div className="flex-1 flex items-center justify-center p-6">
+                <div className="text-center space-y-8 max-w-lg animate-slide-up">
+                  <div className="space-y-4">
+                    <div className="h-16 w-16 mx-auto rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-6">
+                      <Bot className="h-8 w-8 text-white" />
+                    </div>
+                    <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground">
+                      How can I help you today?
+                    </h1>
+                    <p className="text-muted-foreground text-lg">
+                      I can help you with tasks, analysis, and creative work.
+                    </p>
+                  </div>
                   
-                  <div className="flex flex-wrap justify-center gap-2">
+                  <div className="flex flex-wrap justify-center gap-3">
                     <Button 
                       onClick={handleCreateSession}
-                      className="rounded-2xl h-11 px-6 bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 hover:opacity-90 transition-all shadow-sm font-medium"
+                      className="rounded-xl h-12 px-8 bg-foreground text-background hover:opacity-90 transition-all shadow-md font-medium text-base"
                     >
-                      <Plus className="mr-2 h-4 w-4" />
+                      <Plus className="mr-2 h-5 w-5" />
                       Start a new chat
                     </Button>
                   </div>

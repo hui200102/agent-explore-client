@@ -65,17 +65,17 @@ export const HistoryMessage = memo(function HistoryMessage({
   return (
     <div
       className={cn(
-        "flex gap-4 px-4 py-6 hover:bg-muted/20 transition-colors",
+        "flex gap-4 px-4 py-6 w-full max-w-3xl mx-auto hover:bg-muted/10 transition-colors rounded-xl",
         className
       )}
     >
       {/* Avatar */}
-      <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-sm ring-1 ring-white/20">
-        <Bot className="h-5 w-5" />
+      <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-sm ring-1 ring-white/20 mt-1">
+        <Bot className="h-4 w-4" />
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-w-0 max-w-3xl">
+      <div className="flex-1 min-w-0">
         {hasContentBlocks ? (
           <div className="space-y-4">
             {/* Process / Thinking Section (Collapsed by default) */}

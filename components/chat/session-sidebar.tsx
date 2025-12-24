@@ -233,60 +233,61 @@ export function SessionSidebar({
   }
 
   return (
-    <div className="w-[260px] bg-white dark:bg-[#0d0d0d] border-r border-border/20 flex flex-col h-full z-30 transition-all duration-300">
+    <div className="w-[280px] bg-muted/20 border-r border-border/40 flex flex-col h-full z-30 transition-all duration-300">
       {/* Header */}
-      <div className="px-3 pt-3 pb-2 space-y-3">
-        <div className="flex items-center justify-between px-1">
+      <div className="px-4 pt-4 pb-2 space-y-4">
+        <div className="flex items-center justify-between">
           <Button
             variant="ghost"
             size="icon"
             onClick={onToggleCollapse}
-            className="h-7 w-7 rounded-md hover:bg-muted/50 text-muted-foreground/40 hover:text-foreground transition-all"
+            className="h-8 w-8 rounded-lg hover:bg-background/80 text-muted-foreground/60 hover:text-foreground transition-all"
           >
-            <ChevronLeft className="h-3.5 w-3.5" />
+            <ChevronLeft className="h-4 w-4" />
           </Button>
           
           <Button
-            variant="ghost"
-            size="icon"
+            variant="outline"
+            size="sm"
             onClick={onCreateSession}
-            className="h-7 w-7 rounded-md hover:bg-muted/50 text-muted-foreground/40 hover:text-foreground transition-all"
+            className="h-8 px-3 rounded-lg bg-background/50 hover:bg-background text-xs font-medium text-foreground/80 hover:text-foreground border-border/50 shadow-sm transition-all"
           >
-            <Edit2 className="h-3.5 w-3.5" />
+            <Edit2 className="h-3.5 w-3.5 mr-2" />
+            New Chat
           </Button>
         </div>
 
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/30" />
+        <div className="relative group">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40 group-focus-within:text-muted-foreground/70 transition-colors" />
           <Input
             ref={searchInputRef}
             value={searchQuery}
             onChange={handleSearchChange}
-            placeholder="Search..."
-            className="pl-7 pr-2 h-7 bg-muted/30 border-none focus:bg-muted/50 focus:ring-0 transition-all rounded-md text-[12px] placeholder:text-muted-foreground/30 font-medium"
+            placeholder="Search conversations..."
+            className="pl-8 pr-3 h-9 bg-background/40 border-border/30 focus:bg-background/80 focus:ring-1 focus:ring-primary/10 transition-all rounded-lg text-[13px] placeholder:text-muted-foreground/40"
           />
         </div>
       </div>
 
       {/* Sessions List */}
       <ScrollArea className="flex-1">
-        <div className="px-2 pb-2 space-y-8">
+        <div className="px-3 pb-3 space-y-6">
           {isLoading && sessions.length === 0 ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground/20" />
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/20" />
             </div>
           ) : groupedSessions.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-[11px] text-muted-foreground/30 font-medium">No conversations</p>
+            <div className="text-center py-16 px-4">
+              <p className="text-xs text-muted-foreground/40 font-medium">No previous conversations found</p>
             </div>
           ) : (
             groupedSessions.map((group) => (
               <div key={group.title}>
-                <h3 className="px-2 text-[9px] font-extrabold text-muted-foreground/25 uppercase tracking-[0.15em] mb-1.5">
+                <h3 className="px-3 text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest mb-2">
                   {group.title}
                 </h3>
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   {group.sessions.map((session) => {
                     const isActive = currentSessionId === session.session_id
                     const isEditing = editingSessionId === session.session_id
@@ -306,10 +307,10 @@ export function SessionSidebar({
                       <div
                         key={session.session_id}
                         className={cn(
-                          "group relative rounded-md transition-all duration-200",
+                          "group relative rounded-lg transition-all duration-200",
                           isActive
-                            ? "bg-muted/70 text-foreground"
-                            : "hover:bg-muted/30 text-muted-foreground/70 hover:text-foreground"
+                            ? "bg-background shadow-sm ring-1 ring-border/50 text-foreground"
+                            : "hover:bg-background/50 text-muted-foreground/70 hover:text-foreground"
                         )}
                       >
                         {isEditing ? (
@@ -322,7 +323,7 @@ export function SessionSidebar({
                                 if (e.key === "Enter") handleSaveEdit()
                                 if (e.key === "Escape") handleCancelEdit()
                               }}
-                              className="h-6 text-[12px] bg-background border-border/30 px-2 rounded"
+                              className="h-7 text-[13px] bg-background px-2 rounded-md"
                               autoFocus
                             />
                           </div>
@@ -330,24 +331,24 @@ export function SessionSidebar({
                           <div className="relative">
                             <button
                               onClick={() => onSelectSession(session.session_id)}
-                              className="w-full px-2 py-1.5 text-left group/btn"
+                              className="w-full px-3 py-2 text-left"
                             >
-                              <span className="text-[13px] font-medium truncate block pr-8 tracking-tight">
+                              <span className="text-[13px] font-medium truncate block pr-6">
                                 {displayTitle}
                               </span>
                             </button>
 
                             {/* Actions */}
                             <div className={cn(
-                              "absolute right-0.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 transition-opacity duration-150 bg-gradient-to-l from-inherit via-inherit to-transparent pl-6 pr-0.5",
-                              isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                              "absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-l from-background via-background to-transparent pl-4",
+                              isActive && "opacity-100"
                             )}>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleStartEdit(session, e);
                                 }}
-                                className="p-1 hover:bg-muted rounded text-muted-foreground/30 hover:text-foreground transition-all"
+                                className="p-1 hover:bg-muted/80 rounded-md text-muted-foreground/40 hover:text-foreground transition-all"
                                 title="Rename"
                               >
                                 <Edit2 className="h-3 w-3" />
@@ -357,7 +358,7 @@ export function SessionSidebar({
                                   e.stopPropagation();
                                   handleDeleteSession(session.session_id, e);
                                 }}
-                                className="p-1 hover:bg-destructive/10 rounded text-muted-foreground/30 hover:text-destructive transition-all"
+                                className="p-1 hover:bg-red-500/10 rounded-md text-muted-foreground/40 hover:text-red-500 transition-all"
                                 title="Delete"
                               >
                                 <Trash2 className="h-3 w-3" />
@@ -376,13 +377,16 @@ export function SessionSidebar({
       </ScrollArea>
 
       {/* Footer */}
-      <div className="px-3 py-3 border-t border-border/10">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-full bg-muted/40 flex items-center justify-center border border-border/20">
-              <Bot className="h-3.5 w-3.5 text-muted-foreground/40" />
+      <div className="px-4 py-4 border-t border-border/10 bg-background/30 backdrop-blur-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-indigo-500/10 to-purple-500/10 flex items-center justify-center border border-indigo-500/20">
+              <Bot className="h-4 w-4 text-indigo-500/70" />
             </div>
-            <span className="text-[12px] font-semibold text-foreground/60 tracking-tight">Personal</span>
+            <div className="flex flex-col">
+              <span className="text-[13px] font-semibold text-foreground/80 leading-none mb-0.5">My Agent</span>
+              <span className="text-[10px] text-muted-foreground/50 font-medium">Personal Workspace</span>
+            </div>
           </div>
           {onRefresh && (
             <Button
@@ -390,9 +394,9 @@ export function SessionSidebar({
               size="icon"
               onClick={handleRefresh}
               disabled={isRefreshingProp || isLoading}
-              className="h-7 w-7 rounded-md hover:bg-muted/50 text-muted-foreground/30 hover:text-foreground transition-all"
+              className="h-8 w-8 rounded-lg hover:bg-background/80 text-muted-foreground/40 hover:text-foreground transition-all"
             >
-              <RefreshCw className={cn("h-3 w-3", isRefreshingProp && "animate-spin")} />
+              <RefreshCw className={cn("h-3.5 w-3.5", isRefreshingProp && "animate-spin")} />
             </Button>
           )}
         </div>

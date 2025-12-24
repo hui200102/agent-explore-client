@@ -46,10 +46,16 @@ const TextContent = memo(function TextContent({
 
   return (
     <div className={cn(
-      "prose prose-neutral dark:prose-invert max-w-none",
-      "prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent",
-      "prose-headings:font-semibold prose-headings:tracking-tight",
-      "prose-code:text-primary prose-code:bg-primary/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none",
+      "prose prose-neutral dark:prose-invert max-w-none text-[15px] leading-relaxed",
+      "prose-p:my-3 prose-p:leading-7",
+      "prose-pre:p-0 prose-pre:bg-transparent prose-pre:my-4 prose-pre:rounded-xl",
+      "prose-headings:font-semibold prose-headings:tracking-tight prose-headings:mt-6 prose-headings:mb-3",
+      "prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg",
+      "prose-code:text-[13px] prose-code:font-medium prose-code:bg-muted/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none",
+      "prose-ul:my-3 prose-ul:pl-6 prose-li:my-1",
+      "prose-ol:my-3 prose-ol:pl-6",
+      "prose-blockquote:border-l-2 prose-blockquote:border-primary/20 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:text-muted-foreground",
+      "prose-img:rounded-lg prose-img:my-4 prose-img:shadow-sm",
       className
     )}>
       <ReactMarkdown
@@ -64,7 +70,7 @@ const TextContent = memo(function TextContent({
             if (isInline) {
               return (
                 <code
-                  className="font-mono text-[0.9em]"
+                  className="font-mono text-[0.9em] text-primary/80 bg-primary/5 px-1 rounded"
                   {...props}
                 >
                   {children}
@@ -76,7 +82,7 @@ const TextContent = memo(function TextContent({
               <CodeContent
                 text={String(children).replace(/\n$/, "")}
                 language={match[1]}
-                className="not-prose"
+                className="not-prose my-4 shadow-sm"
               />
             );
           },
