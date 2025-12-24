@@ -315,22 +315,22 @@ const CodeContent = memo(function CodeContent({
   className,
 }: CodeContentProps) {
   return (
-    <div className={cn("relative group my-4 rounded-lg border bg-muted/40 overflow-hidden", className)}>
-      <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b">
+    <div className={cn("relative group my-6 rounded-xl border border-border/40 bg-muted/20 overflow-hidden shadow-sm", className)}>
+      <div className="flex items-center justify-between px-4 py-2 bg-muted/40 border-b border-border/40">
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/30" />
-          <div className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/30" />
-          <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/30" />
+          <div className="w-2.5 h-2.5 rounded-full bg-red-500/30" />
+          <div className="w-2.5 h-2.5 rounded-full bg-amber-500/30" />
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/30" />
         </div>
         {language && (
-          <span className="text-xs font-mono font-medium text-muted-foreground uppercase tracking-wider">
+          <span className="text-[10px] font-mono font-bold text-muted-foreground/60 uppercase tracking-widest">
             {language}
           </span>
         )}
       </div>
-      <div className="p-4 overflow-x-auto">
-        <pre>
-          <code className="text-sm font-mono leading-relaxed block min-w-full">
+      <div className="p-4 overflow-x-auto scrollbar-none">
+        <pre className="m-0">
+          <code className="text-[13.5px] font-mono leading-relaxed block min-w-full text-foreground/90">
             {text}
           </code>
         </pre>
@@ -463,13 +463,10 @@ const ThinkingContent = memo(function ThinkingContent({
   // If streaming with no content yet, show minimal Cursor-style indicator
   if (!text && isStreaming) {
     return (
-      <div className={cn("my-2", className)}>
-        <div className="inline-flex items-center gap-1.5 text-muted-foreground/60 text-sm">
-          <div className="relative w-4 h-4">
-            <div className="absolute inset-0 rounded-full border-2 border-muted-foreground/20" />
-            <div className="absolute inset-0 rounded-full border-2 border-t-muted-foreground/60 animate-spin" />
-          </div>
-          <span>Thinking...</span>
+      <div className={cn("my-4", className)}>
+        <div className="inline-flex items-center gap-2 text-muted-foreground/50 text-[13px] font-medium tracking-tight bg-muted/30 px-3 py-1.5 rounded-full border border-border/20">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <span>Thinking{timeDisplay ? ` (${timeDisplay})` : '...'}</span>
         </div>
       </div>
     );
@@ -478,33 +475,29 @@ const ThinkingContent = memo(function ThinkingContent({
   if (!text) return null;
 
   return (
-    <div className={cn("my-2", className)}>
+    <div className={cn("my-4", className)}>
       <div 
         onClick={() => setIsExpanded(!isExpanded)}
-        className="inline-flex items-center gap-1.5 cursor-pointer group select-none text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors"
+        className="inline-flex items-center gap-2 cursor-pointer group select-none text-muted-foreground/50 hover:text-muted-foreground/80 transition-all bg-muted/20 hover:bg-muted/40 px-3 py-1.5 rounded-full border border-border/20 shadow-sm"
       >
-        <div className="transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
-          <ChevronRight className="h-4 w-4" />
+        <div className="transition-transform duration-300 ease-in-out" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+          <ChevronRight className="h-3.5 w-3.5" />
         </div>
         
-        <span className="text-sm">
+        <span className="text-[13px] font-medium tracking-tight">
           {isStreaming ? (
-            <>Thinking{timeDisplay ? ` for ${timeDisplay}` : '...'}</>
+            <>Thinking{timeDisplay ? ` (${timeDisplay})` : '...'}</>
           ) : (
             <>Thought{timeDisplay ? ` for ${timeDisplay}` : ''}</>
           )}
         </span>
-        
-        {isStreaming && (
-          <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-pulse" />
-        )}
       </div>
 
       {isExpanded && (
-        <div className="mt-2 ml-5 animate-in slide-in-from-top-2 duration-200">
-          <div className="text-sm text-muted-foreground/70 leading-relaxed whitespace-pre-wrap pl-3 border-l-2 border-muted-foreground/10">
+        <div className="mt-3 ml-2 animate-fade-in-up">
+          <div className="text-[14px] text-muted-foreground/60 leading-relaxed whitespace-pre-wrap pl-4 border-l border-border/40 italic">
             {text}
-            {isStreaming && <span className="inline-block w-0.5 h-4 bg-muted-foreground/40 animate-pulse ml-0.5 align-middle" />}
+            {isStreaming && <span className="inline-block w-1 h-3 bg-muted-foreground/30 animate-pulse ml-1 align-middle" />}
           </div>
         </div>
       )}
@@ -528,26 +521,26 @@ const ToolCallContent = memo(function ToolCallContent({
   const toolArgs = block.metadata?.tool_args || {};
 
   return (
-    <div className={cn("my-2", className)}>
+    <div className={cn("my-3", className)}>
       <div 
         onClick={() => setIsExpanded(!isExpanded)}
-        className="inline-flex items-center gap-1.5 cursor-pointer group select-none text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors"
+        className="inline-flex items-center gap-2 cursor-pointer group select-none text-muted-foreground/60 hover:text-foreground transition-all bg-muted/20 hover:bg-muted/40 px-3 py-1.5 rounded-full border border-border/20 shadow-sm"
       >
-        <div className="transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
-          <ChevronRight className="h-4 w-4" />
+        <div className="transition-transform duration-300 ease-in-out" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+          <ChevronRight className="h-3.5 w-3.5" />
         </div>
         
-        <Wrench className="h-3.5 w-3.5" />
+        <Wrench className="h-3.5 w-3.5 text-indigo-500/70" />
         
-        <span className="text-sm">
-          Called <span className="font-medium text-foreground/70">{toolName}</span>
+        <span className="text-[13px] font-medium tracking-tight">
+          Calling <span className="font-bold text-foreground/80">{toolName}</span>
         </span>
       </div>
 
       {isExpanded && (
-        <div className="mt-2 ml-5 animate-in slide-in-from-top-2 duration-200">
-          <div className="bg-muted/30 rounded-md p-3 text-xs font-mono overflow-x-auto border border-muted/50 pl-3 border-l-2 border-l-muted-foreground/20 max-h-[300px] overflow-y-auto">
-            <pre className="text-muted-foreground/80">
+        <div className="mt-3 ml-2 animate-fade-in-up">
+          <div className="bg-muted/30 backdrop-blur-sm rounded-xl p-4 text-[12px] font-mono border border-border/40 pl-4 border-l-2 border-l-indigo-500/30 max-h-[400px] overflow-y-auto scrollbar-none shadow-inner">
+            <pre className="text-muted-foreground/80 leading-relaxed">
               {JSON.stringify(toolArgs, null, 2)}
             </pre>
           </div>
@@ -557,13 +550,6 @@ const ToolCallContent = memo(function ToolCallContent({
   );
 });
 
-// ============ Tool Output Content (Cursor Style) ============
-
-interface ToolOutputContentProps {
-  block: ContentBlock;
-  className?: string;
-}
-
 const ToolOutputContent = memo(function ToolOutputContent({
   block,
   className,
@@ -572,26 +558,26 @@ const ToolOutputContent = memo(function ToolOutputContent({
   const toolName = block.metadata?.tool_name as string || "Tool";
 
   return (
-    <div className={cn("my-2", className)}>
+    <div className={cn("my-3", className)}>
       <div 
         onClick={() => setIsExpanded(!isExpanded)}
-        className="inline-flex items-center gap-1.5 cursor-pointer group select-none text-muted-foreground/60 hover:text-muted-foreground/80 transition-colors"
+        className="inline-flex items-center gap-2 cursor-pointer group select-none text-muted-foreground/60 hover:text-foreground transition-all bg-muted/20 hover:bg-muted/40 px-3 py-1.5 rounded-full border border-border/20 shadow-sm"
       >
-        <div className="transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
-          <ChevronRight className="h-4 w-4" />
+        <div className="transition-transform duration-300 ease-in-out" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+          <ChevronRight className="h-3.5 w-3.5" />
         </div>
         
         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500/70" />
         
-        <span className="text-sm">
-          Output from <span className="font-medium text-foreground/70">{toolName}</span>
+        <span className="text-[13px] font-medium tracking-tight">
+          Result from <span className="font-bold text-foreground/80">{toolName}</span>
         </span>
       </div>
 
       {isExpanded && (
-        <div className="mt-2 ml-5 animate-in slide-in-from-top-2 duration-200">
-          <div className="bg-muted/20 rounded-md p-3 text-xs font-mono overflow-x-auto max-h-[300px] overflow-y-auto pl-3 border-l-2 border-l-emerald-500/30">
-            <pre className="text-muted-foreground/80 whitespace-pre-wrap break-words">
+        <div className="mt-3 ml-2 animate-fade-in-up">
+          <div className="bg-muted/10 backdrop-blur-sm rounded-xl p-4 text-[12px] font-mono border border-border/40 pl-4 border-l-2 border-l-emerald-500/30 max-h-[400px] overflow-y-auto scrollbar-none shadow-inner">
+            <pre className="text-muted-foreground/80 whitespace-pre-wrap break-words leading-relaxed">
               {block.text}
             </pre>
           </div>

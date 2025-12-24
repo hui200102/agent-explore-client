@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { useMessageStore } from "@/stores/message-store";
 import { ContentBlockView } from "./content-block-view";
 import type { ContentBlock } from "@/lib/message_type";
-import { Bot, User, AlertCircle } from "lucide-react";
+import { Bot, AlertCircle, Paperclip } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 // ============ Message Bubble ============
@@ -26,28 +26,28 @@ const MessageBubble = memo(function MessageBubble({
   return (
     <div
       className={cn(
-        "flex gap-4 px-4 py-6 hover:bg-muted/20 transition-colors",
+        "flex gap-4 px-6 py-8 transition-all duration-300",
         isUser ? "flex-row-reverse" : "flex-row",
         className
       )}
     >
-      {/* Avatar */}
-      <div
-        className={cn(
-          "flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center shadow-sm",
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-gradient-to-br from-indigo-500 to-purple-600 text-white ring-1 ring-white/20"
-        )}
-      >
-        {isUser ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
-      </div>
+      {/* Avatar - Only for assistant */}
+      {!isUser && (
+        <div
+          className={cn(
+            "flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow-sm",
+            "bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white ring-1 ring-white/20"
+          )}
+        >
+          <Bot className="h-4 w-4" />
+        </div>
+      )}
 
       {/* Content */}
       <div
         className={cn(
-          "flex-1 min-w-0 max-w-3xl space-y-2",
-          isUser ? "flex flex-col items-end" : ""
+          "flex-1 min-w-0 max-w-3xl",
+          isUser ? "flex flex-col items-end" : "space-y-4"
         )}
       >
         {children}
@@ -80,7 +80,7 @@ const ToolBlocksContainer = memo(function ToolBlocksContainer({
   return (
     <div
       ref={scrollRef}
-      className="max-h-[260px] overflow-y-auto border border-indigo-500/10 rounded-xl bg-indigo-50/5 dark:bg-indigo-950/10 p-2 space-y-1 scroll-smooth scrollbar-thin scrollbar-thumb-indigo-500/20"
+      className="max-h-[300px] overflow-y-auto border border-border/40 rounded-2xl bg-muted/20 backdrop-blur-sm p-3 space-y-2 scroll-smooth scrollbar-none"
     >
       {children}
     </div>
@@ -291,7 +291,7 @@ export const UserMessage = memo(function UserMessage({
 }: UserMessageProps) {
   return (
     <MessageBubble role="user" className={className}>
-      <div className="flex flex-col items-end gap-2 max-w-[90%]">
+      <div className="flex flex-col items-end gap-3 max-w-[85%]">
         {/* Attachments (Images) */}
         {attachments && attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 justify-end">
@@ -303,7 +303,7 @@ export const UserMessage = memo(function UserMessage({
                     key={index}
                     src={attachment.url}
                     alt={attachment.filename || "Image attachment"}
-                    className="max-w-[200px] max-h-[200px] rounded-lg border shadow-sm object-cover bg-background"
+                    className="max-w-[240px] max-h-[240px] rounded-2xl border-2 border-background shadow-md object-cover animate-bounce-in"
                   />
                 );
               }
@@ -311,8 +311,9 @@ export const UserMessage = memo(function UserMessage({
               return (
                 <div
                   key={index}
-                  className="text-xs bg-muted px-2.5 py-1 rounded-md font-medium border"
+                  className="flex items-center gap-2 text-[11px] bg-muted/80 backdrop-blur-sm px-3 py-1.5 rounded-full font-medium border border-border/50 shadow-sm"
                 >
+                  <Paperclip className="h-3 w-3 text-muted-foreground" />
                   {attachment.filename || attachment.type}
                 </div>
               );
@@ -322,7 +323,7 @@ export const UserMessage = memo(function UserMessage({
 
         {/* Text Content */}
         {content && (
-          <div className="bg-primary/90 text-primary-foreground rounded-2xl rounded-tr-sm px-5 py-3.5 shadow-sm">
+          <div className="bg-primary text-primary-foreground rounded-3xl rounded-tr-lg px-6 py-3.5 shadow-md">
             <p className="text-[15px] leading-relaxed whitespace-pre-wrap">
               {content}
             </p>

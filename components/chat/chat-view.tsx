@@ -14,13 +14,14 @@ import { useFileUpload, type UploadedFile } from "@/hooks/use-file-upload";
 import {
   Send,
   Loader2,
-  ImagePlus,
   Paperclip,
   X,
   Wifi,
   WifiOff,
-  AlertCircle,
   FileText,
+  Plus,
+  Wrench,
+  Bot,
 } from "lucide-react";
 
 // ============ Types ============
@@ -115,16 +116,16 @@ const MessageInput = memo(function MessageInput({
   );
 
   return (
-    <div className={cn("border-t bg-background", className)}>
+    <div className={cn("bg-background/80 backdrop-blur-md pb-6 px-4 pt-2", className)}>
       {/* Attachments Preview */}
       {files.length > 0 && (
-        <div className="px-4 pt-3 flex flex-wrap gap-2">
+        <div className="max-w-4xl mx-auto mb-3 flex flex-wrap gap-2 animate-fade-in-up">
           {files.map((file) => (
             <div
               key={file.id}
               className={cn(
-                "relative group flex items-center gap-2 bg-muted rounded-lg px-3 py-2 border",
-                file.uploadStatus === "error" || file.analysisStatus === "error" ? "border-destructive/50 bg-destructive/10" : "border-transparent"
+                "relative group flex items-center gap-2 bg-muted/50 backdrop-blur-sm rounded-xl px-3 py-2 border transition-all hover:bg-muted",
+                file.uploadStatus === "error" || file.analysisStatus === "error" ? "border-destructive/30 bg-destructive/5" : "border-border/50"
               )}
             >
               {file.preview ? (
@@ -132,43 +133,37 @@ const MessageInput = memo(function MessageInput({
                 <img
                   src={file.preview}
                   alt={file.name}
-                  className="w-10 h-10 object-cover rounded"
+                  className="w-8 h-8 object-cover rounded-md shadow-sm"
                 />
               ) : (
-                <div className="w-10 h-10 bg-muted-foreground/20 rounded flex items-center justify-center">
-                  <Paperclip className="h-4 w-4 text-muted-foreground" />
+                <div className="w-8 h-8 bg-muted-foreground/10 rounded-md flex items-center justify-center">
+                  <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
                 </div>
               )}
               
-              <div className="flex flex-col min-w-[100px] max-w-[200px]">
-                <span className="text-xs text-muted-foreground truncate font-medium">
+              <div className="flex flex-col min-w-[80px] max-w-[150px]">
+                <span className="text-[11px] text-foreground/80 truncate font-medium">
                   {file.name}
                 </span>
                 
                 {/* Status Indicator */}
-                <div className="flex items-center gap-1.5 mt-1">
+                <div className="flex items-center gap-1.5 mt-0.5">
                   {file.uploadStatus === "uploading" && (
-                    <div className="flex items-center gap-1 text-[10px] text-blue-500">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      <span>Uploading {file.uploadProgress}%</span>
+                    <div className="flex items-center gap-1 text-[9px] text-blue-500 font-medium">
+                      <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                      <span>{file.uploadProgress}%</span>
                     </div>
                   )}
                   {file.uploadStatus === "success" && file.analysisStatus === "analyzing" && (
-                    <div className="flex items-center gap-1 text-[10px] text-amber-500">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      <span>Analyzing...</span>
+                    <div className="flex items-center gap-1 text-[9px] text-amber-500 font-medium">
+                      <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                      <span>Analyzing</span>
                     </div>
                   )}
                   {file.uploadStatus === "success" && file.analysisStatus === "complete" && (
-                    <div className="flex items-center gap-1 text-[10px] text-emerald-500">
-                      <FileText className="h-3 w-3" />
-                      <span>Analyzed</span>
-                    </div>
-                  )}
-                  {(file.uploadStatus === "error" || file.analysisStatus === "error") && (
-                    <div className="flex items-center gap-1 text-[10px] text-destructive">
-                      <AlertCircle className="h-3 w-3" />
-                      <span>{file.error || file.analysisError || "Failed"}</span>
+                    <div className="flex items-center gap-1 text-[9px] text-emerald-500 font-medium">
+                      <FileText className="h-2.5 w-2.5" />
+                      <span>Ready</span>
                     </div>
                   )}
                 </div>
@@ -176,7 +171,7 @@ const MessageInput = memo(function MessageInput({
 
               <button
                 onClick={() => onRemoveFile(file.id)}
-                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-background border shadow-sm text-muted-foreground hover:text-destructive rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -186,33 +181,13 @@ const MessageInput = memo(function MessageInput({
       )}
 
       {/* Input Area */}
-      <div className="p-4">
+      <div className="max-w-4xl mx-auto relative">
         <div
           className={cn(
-            "flex items-end gap-2 rounded-2xl border bg-background p-2 transition-shadow",
-            isFocused && "ring-2 ring-ring ring-offset-2"
+            "flex flex-col gap-2 rounded-[24px] border border-border/60 bg-muted/30 backdrop-blur-sm p-2 transition-all duration-200",
+            isFocused ? "border-primary/30 bg-background shadow-[0_0_20px_rgba(0,0,0,0.05)] ring-1 ring-primary/10" : "hover:border-border"
           )}
         >
-          {/* File Upload Button */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt"
-            className="hidden"
-            onChange={handleFileSelect}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 rounded-full flex-shrink-0"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || isUploading}
-          >
-            <ImagePlus className="h-5 w-5 text-muted-foreground" />
-          </Button>
-          
           {/* Textarea */}
           <Textarea
             ref={textareaRef}
@@ -223,30 +198,72 @@ const MessageInput = memo(function MessageInput({
             onBlur={() => setIsFocused(false)}
             placeholder={placeholder}
             disabled={disabled}
-            className="flex-1 min-h-[40px] max-h-[200px] resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-2"
+            className="flex-1 min-h-[44px] max-h-[200px] resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 p-3 bg-transparent text-[15px] leading-relaxed"
             rows={1}
           />
 
-          {/* Send Button */}
-          <Button
-            type="button"
-            size="icon"
-            className="h-9 w-9 rounded-full flex-shrink-0"
-            onClick={handleSubmit}
-            disabled={disabled || (!content.trim() && files.length === 0) || isUploading}
-          >
-            {disabled || isUploading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
+          <div className="flex items-center justify-between px-1 pb-1">
+            <div className="flex items-center gap-1">
+              {/* File Upload Button */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={disabled || isUploading}
+                title="Upload files"
+              >
+                <Plus className="h-5 w-5" />
+              </Button>
 
-        {/* Helper text */}
-        <p className="text-xs text-muted-foreground mt-2 text-center">
-          Press Enter to send, Shift+Enter for new line
-        </p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                disabled={disabled}
+                title="Agent Tools"
+              >
+                <Wrench className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-muted-foreground/60 hidden sm:inline-block">
+                Shift + Enter for new line
+              </span>
+              
+              {/* Send Button */}
+              <Button
+                type="button"
+                size="icon"
+                className={cn(
+                  "h-8 w-8 rounded-full transition-all duration-200",
+                  content.trim() || files.length > 0 
+                    ? "bg-primary text-primary-foreground shadow-sm" 
+                    : "bg-muted text-muted-foreground/40 cursor-not-allowed"
+                )}
+                onClick={handleSubmit}
+                disabled={disabled || (!content.trim() && files.length === 0) || isUploading}
+              >
+                {disabled || isUploading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -575,21 +592,41 @@ export function ChatView({ sessionId, className }: ChatViewProps) {
   }, [messages.length]);
 
   return (
-    <div className={cn("flex flex-col h-full bg-background", className)}>
+    <div className={cn("flex flex-col h-full bg-background relative", className)}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b">
-        <h2 className="text-sm font-medium">Chat</h2>
-        <ConnectionStatus isConnected={isConnected} />
+      <div className="flex items-center justify-between px-6 py-3 bg-background/80 backdrop-blur-md border-b border-border/50 sticky top-0 z-10">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shadow-sm">
+            <Bot className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold tracking-tight">AI Agent</h2>
+            <div className="flex items-center gap-1.5">
+              <div className={cn("h-1.5 w-1.5 rounded-full", isConnected ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/30")} />
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                {isConnected ? "Active Session" : "Disconnected"}
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-muted-foreground">
+            <Wrench className="h-4 w-4" />
+          </Button>
+          <div className="h-4 w-[1px] bg-border/50 mx-1" />
+          <ConnectionStatus isConnected={isConnected} />
+        </div>
       </div>
 
       {/* Messages Area */}
       <ScrollArea ref={scrollRef} className="flex-1">
-        <div className="min-h-full py-4">
+        <div className="max-w-4xl mx-auto w-full min-h-full py-8">
           {/* Loading History */}
           {isLoadingHistory && (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-sm text-muted-foreground">Loading history...</span>
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-primary/30" />
+              <span className="text-xs text-muted-foreground font-medium uppercase tracking-widest">Retrieving logs</span>
             </div>
           )}
 
@@ -615,8 +652,14 @@ export function ChatView({ sessionId, className }: ChatViewProps) {
 
           {/* Empty state */}
           {!isLoadingHistory && messages.length === 0 && !isStreaming && (
-            <div className="flex items-center justify-center h-full min-h-[200px] text-muted-foreground">
-              <p className="text-sm">Start a conversation...</p>
+            <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-4 animate-fade-in-up">
+              <div className="h-16 w-16 rounded-2xl bg-muted/30 flex items-center justify-center mb-6">
+                <Plus className="h-8 w-8 text-muted-foreground/30" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">How can I help you today?</h3>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                Start a conversation with the AI agent. You can upload files, ask questions, or request tasks.
+              </p>
             </div>
           )}
         </div>
@@ -629,7 +672,7 @@ export function ChatView({ sessionId, className }: ChatViewProps) {
         onAddFiles={addFiles}
         onRemoveFile={removeFile}
         disabled={isStreaming || isLoadingHistory}
-        placeholder="Type your message..."
+        placeholder="Message AI Agent..."
       />
     </div>
   );
