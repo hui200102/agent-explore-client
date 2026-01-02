@@ -3,6 +3,7 @@
 import { memo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ContentBlockView } from "./content-block-view";
+import { ToolBlocksContainer } from "./message-container";
 import type { ContentBlock } from "@/lib/message_type";
 import { Bot, ChevronDown, ChevronRight, Sparkles } from "lucide-react";
 
@@ -30,16 +31,18 @@ export const HistoryMessage = memo(function HistoryMessage({
   // Filter blocks
   const processBlocks = contentBlocks?.filter(
     (block) =>
-      block.task_id ||
+      (block.task_id ||
       block.content_type === "thinking" ||
-      block.content_type === "plan"
+      block.content_type === "plan") &&
+      !["tool_call", "tool_output"].includes(block.content_type)
   );
 
   const finalBlocks = contentBlocks?.filter(
     (block) =>
-      !block.task_id &&
+      (!block.task_id &&
       block.content_type !== "thinking" &&
-      block.content_type !== "plan"
+      block.content_type !== "plan") ||
+      ["tool_call", "tool_output"].includes(block.content_type)
   );
 
   const hasProcess = processBlocks && processBlocks.length > 0;
@@ -51,11 +54,18 @@ export const HistoryMessage = memo(function HistoryMessage({
       "plan",
       "execution_status",
       "evaluation_result",
-      "tool_call",
-      "tool_output",
     ].includes(block.content_type);
 
-    if (isHideTypes || block.is_intermediate) {
+    if (isHideTypes) {
+      return true;
+    }
+
+    // Always show tool calls/outputs
+    if (["tool_call", "tool_output"].includes(block.content_type)) {
+      return false;
+    }
+
+    if (block.is_intermediate) {
       return true;
     }
 
@@ -118,21 +128,55 @@ export const HistoryMessage = memo(function HistoryMessage({
             {/* Final Output */}
             {hasFinal ? (
               <div className="space-y-4">
-                {finalBlocks.map((block) => {
-                  if (
-                    isHiddenBlock(block)
-                  ) {
-                    return null;
-                  }
-                  
-                  return (
-                    <ContentBlockView
-                      key={block.content_id}
-                      block={block}
-                      isStreaming={false}
-                    />
-                  );
-                })}
+                {(() => {
+                  // Group blocks: consecutive tool blocks go together
+                  const groups: { type: "single" | "tools"; blocks: ContentBlock[] }[] = [];
+                  let currentGroup: { type: "single" | "tools"; blocks: ContentBlock[] } | null = null;
+
+                  finalBlocks.forEach((block) => {
+                    if (isHiddenBlock(block)) return;
+
+                    const isTool = ["tool_call", "tool_output"].includes(block.content_type);
+
+                    if (isTool) {
+                      if (currentGroup?.type === "tools") {
+                        currentGroup.blocks.push(block);
+                      } else {
+                        currentGroup = { type: "tools", blocks: [block] };
+                        groups.push(currentGroup);
+                      }
+                    } else {
+                      currentGroup = { type: "single", blocks: [block] };
+                      groups.push(currentGroup);
+                    }
+                  });
+
+                  return groups.map((group, groupIndex) => {
+                    if (group.type === "tools") {
+                      return (
+                        <ToolBlocksContainer key={`group-${groupIndex}`}>
+                          {group.blocks.map((block) => (
+                            <ContentBlockView
+                              key={block.content_id}
+                              block={block}
+                              isStreaming={false}
+                            />
+                          ))}
+                        </ToolBlocksContainer>
+                      );
+                    }
+
+                    // Single block
+                    const block = group.blocks[0];
+                    return (
+                      <ContentBlockView
+                        key={block.content_id}
+                        block={block}
+                        isStreaming={false}
+                      />
+                    );
+                  });
+                })()}
               </div>
             ) : (
               !hasProcess &&

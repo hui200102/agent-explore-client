@@ -90,6 +90,8 @@ const ToolBlocksContainer = memo(function ToolBlocksContainer({
   );
 });
 
+export { ToolBlocksContainer };
+
 const MessageContentStream = memo(function MessageContentStream({
   contentOrder,
   contentBlocks,
