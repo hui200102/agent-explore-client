@@ -271,8 +271,24 @@ export const useMessageStore = create<MessageStore>()((set, get) => ({
         }
         
         if (!contentId) {
-          console.warn('No content block to append text to:', deltaContent);
-          return state;
+          // Auto-create a default text block if none exists (robustness fix)
+          // This handles cases where backend streams text without an explicit "new block" event
+          const newId = `text_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          const newBlock: ContentBlock = {
+            content_id: newId,
+            content_type: 'text',
+            text: deltaContent,
+            sequence: state.contentOrder.length + 1,
+            is_placeholder: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          
+          return {
+            contentBlocks: { ...state.contentBlocks, [newId]: newBlock },
+            contentOrder: [...state.contentOrder, newId],
+            currentStreamingBlockId: newId,
+          };
         }
         
         const block = state.contentBlocks[contentId];
